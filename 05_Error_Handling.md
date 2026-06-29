@@ -2,7 +2,7 @@
 
 ## Objective
 
-Error handling is not optional.
+Error handling is a fundamental part of application reliability.
 
 Every VBA procedure should either:
 
@@ -10,7 +10,9 @@ Every VBA procedure should either:
 - propagate them to the caller,
 - or explicitly document why no error handling is required.
 
-A program that crashes with a generic VBA message box is considered unfinished.
+Unexpected errors must **never** be ignored.
+
+The project uses **`Utils_Log`** as the central logging service for diagnostics and troubleshooting.
 
 ---
 
@@ -19,12 +21,111 @@ A program that crashes with a generic VBA message box is considered unfinished.
 Error handling should:
 
 - prevent unexpected crashes
-- provide meaningful information
-- leave Excel in a consistent state
+- keep Excel in a consistent state
 - clean up resources
-- help debugging
+- provide enough information for troubleshooting
+- log unexpected failures
+- only notify the user when necessary
 
 Error handling should **never** hide errors.
+
+---
+
+# Logging Policy
+
+`Utils_Log` is the project's single source of truth for diagnostics.
+
+Every unexpected error should be logged before exiting or propagating the error.
+
+A log entry should contain, whenever possible:
+
+- procedure name
+- error number
+- error description
+- source
+- workbook name
+- worksheet name
+- current row or record identifier
+- additional business context
+
+Logs should provide enough information to reproduce an issue without a debugger.
+
+---
+
+# Logging Levels
+
+Use the appropriate logging level.
+
+## Info
+
+Normal execution.
+
+Examples:
+
+```vb
+Utils_Log.Info "Import started"
+
+Utils_Log.Info "153 records imported"
+```
+
+---
+
+## Warning
+
+Recoverable or unexpected business situations.
+
+Examples:
+
+```vb
+Utils_Log.Warning "Unknown SAP material code"
+
+Utils_Log.Warning "Label already exists"
+```
+
+---
+
+## Error
+
+Unexpected runtime failures.
+
+Examples:
+
+```vb
+Utils_Log.Error _
+    ProcedureName:="ExportLabels", _
+    ErrObject:=Err
+```
+
+Every unexpected runtime error should generate an Error log.
+
+---
+
+# MsgBox Policy
+
+`MsgBox` should **not** be the primary error reporting mechanism.
+
+Use a `MsgBox` only when:
+
+- the procedure is directly initiated by the user,
+- the user must immediately react,
+- continuing execution would be meaningless.
+
+Never display technical information to the user if it has already been logged.
+
+Preferred pattern:
+
+```vb
+Utils_Log.Error _
+    ProcedureName:="ExportLabels", _
+    ErrObject:=Err
+
+MsgBox _
+    "The operation could not be completed." & vbCrLf & _
+    "See the application log for technical details.", _
+    vbExclamation
+```
+
+Most helper modules should never display a `MsgBox`.
 
 ---
 
@@ -36,11 +137,11 @@ Never write:
 On Error Resume Next
 ```
 
-without immediately checking:
+without:
 
-- `Err.Number`
-- the expected result
-- and restoring normal error handling.
+- checking `Err.Number`
+- validating the expected result
+- restoring normal error handling immediately.
 
 Silent failures create difficult bugs.
 
@@ -48,10 +149,10 @@ Silent failures create difficult bugs.
 
 # Preferred Structure
 
-Every non-trivial procedure should follow this pattern:
+Every non-trivial procedure should follow this structure.
 
 ```vb
-Public Sub ExportData()
+Public Sub ExportLabels()
 
     On Error GoTo ErrorHandler
 
@@ -63,9 +164,9 @@ CleanExit:
 
 ErrorHandler:
 
-    ' Cleanup
-
-    MsgBox Err.Description
+    Utils_Log.Error _
+        ProcedureName:="ExportLabels", _
+        ErrObject:=Err
 
     Resume CleanExit
 
@@ -76,7 +177,7 @@ End Sub
 
 # Functions
 
-Functions follow the same structure.
+Functions follow the same philosophy.
 
 ```vb
 Public Function FindLastRow(ws As Worksheet) As Long
@@ -91,6 +192,10 @@ CleanExit:
 
 ErrorHandler:
 
+    Utils_Log.Error _
+        ProcedureName:="FindLastRow", _
+        ErrObject:=Err
+
     FindLastRow = 0
 
     Resume CleanExit
@@ -104,7 +209,7 @@ End Function
 
 Always centralize cleanup.
 
-Examples:
+Typical cleanup includes:
 
 ```vb
 Application.ScreenUpdating = True
@@ -119,88 +224,63 @@ Never duplicate cleanup code.
 
 ---
 
-# Error Handler Section
+# Validation Before Execution
 
-The error handler should:
+Prefer validating inputs instead of relying on runtime errors.
 
-- identify the procedure
-- include the error number
-- include the description
-- clean resources
-- optionally rethrow
-
-Example:
+Examples:
 
 ```vb
-MsgBox _
-    "ExportData failed." & vbCrLf & _
-    "Error " & Err.Number & vbCrLf & _
-    Err.Description
+If ws Is Nothing Then Exit Sub
+
+If Len(filePath) = 0 Then Exit Sub
+
+If Not FileExists(filePath) Then Exit Sub
 ```
+
+Validation produces more predictable code.
 
 ---
 
 # Expected Errors
 
-Some errors are part of normal execution.
+Expected situations should be handled with validation.
 
 Example:
 
-File not found.
-
-Instead of crashing:
-
 ```vb
-If Dir(filePath) = "" Then
+If Not FileExists(filePath) Then
 
-    MsgBox "File not found."
+    Utils_Log.Warning _
+        "Configuration file not found."
 
     Exit Sub
 
 End If
 ```
 
-Prefer validation over exception handling.
+Avoid using exceptions for normal business situations.
 
 ---
 
 # Unexpected Errors
 
-Unexpected errors should be trapped.
+Unexpected runtime failures include:
 
-Examples:
-
-- invalid worksheet
+- invalid object references
 - COM failures
 - printer unavailable
-- invalid object
-- runtime overflow
+- worksheet deleted
+- overflow
+- external application failures
 
----
-
-# Avoid Nested Error Handling
-
-Avoid:
-
-```vb
-On Error GoTo A
-
-...
-
-On Error GoTo B
-
-...
-
-On Error GoTo C
-```
-
-Keep one handler per procedure.
+These errors should always be logged.
 
 ---
 
 # On Error Resume Next
 
-Allowed only for very specific operations.
+Allowed only for very small protected blocks.
 
 Example:
 
@@ -224,7 +304,7 @@ The protected block should be as short as possible.
 
 # Restore Error Handling
 
-Always restore immediately.
+Always restore standard error handling.
 
 ```vb
 On Error GoTo 0
@@ -234,29 +314,9 @@ Never leave `Resume Next` active.
 
 ---
 
-# Validation Before Action
-
-Prefer:
-
-```vb
-If ws Is Nothing Then Exit Sub
-```
-
-instead of relying on runtime errors.
-
-Likewise:
-
-```vb
-If Len(filePath) = 0 Then Exit Sub
-```
-
----
-
 # Resource Cleanup
 
 Always release external resources.
-
-Examples:
 
 ```vb
 Set rs = Nothing
@@ -268,7 +328,7 @@ Set xlApp = Nothing
 
 # Excel State
 
-If code modifies Excel settings:
+Whenever code modifies the Excel environment:
 
 ```vb
 Application.ScreenUpdating = False
@@ -276,53 +336,30 @@ Application.EnableEvents = False
 Application.Calculation = xlCalculationManual
 ```
 
-they **must** always be restored.
+those settings must always be restored.
 
-Even after an error.
-
----
-
-# Logging
-
-Complex applications should log errors.
-
-Useful information:
-
-- procedure name
-- error number
-- description
-- date/time
-- user
-- workbook
-- optional stack information
-
-Example:
-
-```
-2026-06-15 14:23
-
-ExportLabels
-
-Error 91
-
-Object variable not set
-```
+Even if an error occurs.
 
 ---
 
-# Rethrowing Errors
+# Error Propagation
 
-Sometimes the caller should decide.
+Some procedures should only log and rethrow.
 
 Example:
 
 ```vb
-Err.Raise Err.Number, _
-          "ExportData", _
-          Err.Description
+Utils_Log.Error _
+    ProcedureName:="LoadConfiguration", _
+    ErrObject:=Err
+
+Err.Raise _
+    Err.Number, _
+    Err.Source, _
+    Err.Description
 ```
 
-Do not swallow important errors.
+The caller decides how to react.
 
 ---
 
@@ -330,73 +367,39 @@ Do not swallow important errors.
 
 Validate assumptions early.
 
-Example:
-
 ```vb
 If ws Is Nothing Then
 
-    Err.Raise vbObjectError + 1, _
-              "LoadConfiguration", _
-              "Worksheet is required."
+    Err.Raise _
+        vbObjectError + 1000, _
+        "LoadConfiguration", _
+        "Worksheet cannot be Nothing."
 
 End If
 ```
 
 ---
 
-# Avoid Generic Messages
+# Public Procedures
 
-Bad:
-
-```vb
-MsgBox "Error"
-```
-
-Good:
-
-```vb
-MsgBox _
-"Unable to export labels." & vbCrLf & _
-Err.Description
-```
-
----
-
-# Error Numbers
-
-Always preserve:
-
-```vb
-Err.Number
-Err.Description
-Err.Source
-```
-
-Never replace useful information with generic text.
-
----
-
-# Public APIs
-
-Public procedures should fail gracefully.
-
-They should:
+Public APIs should:
 
 - validate inputs
-- report meaningful errors
-- avoid leaving Excel unstable
+- log unexpected errors
+- leave Excel in a consistent state
+- notify the user only when appropriate
 
 ---
 
 # Private Helpers
 
-Private helper functions may simply:
+Private helper procedures should:
 
-```vb
-Err.Raise
-```
+- never display a `MsgBox`
+- log errors
+- propagate errors when appropriate
 
-and let the caller handle the error.
+Helpers are infrastructure, not user interface.
 
 ---
 
@@ -409,7 +412,7 @@ Debug.Print Err.Number
 Debug.Print Err.Description
 ```
 
-Avoid leaving debugging code in production unless intentionally logging.
+For production code, prefer structured logging through `Utils_Log`.
 
 ---
 
@@ -427,11 +430,11 @@ Exit Sub
 
 Never ignore `Err.Number`.
 
-Never suppress every error.
+Never swallow exceptions.
 
 Never use empty error handlers.
 
-Example to avoid:
+Avoid:
 
 ```vb
 ErrorHandler:
@@ -439,20 +442,26 @@ ErrorHandler:
 Resume Next
 ```
 
+Never display a `MsgBox` from a utility module.
+
+Never duplicate logging code throughout the application.
+
 ---
 
 # AI Rules
 
 When generating VBA code, AI should:
 
-- always create a structured error handler for non-trivial procedures
-- include a `CleanExit` section when cleanup is required
-- restore Excel settings before exiting
-- never leave `On Error Resume Next` active
-- validate inputs before performing operations
-- provide meaningful error messages
-- preserve `Err.Number`, `Err.Description` and `Err.Source`
+- always create structured error handlers for non-trivial procedures
+- use `Utils_Log` for all unexpected errors
+- avoid `MsgBox` except in UI workflows
+- always restore Excel settings
+- validate inputs before execution
 - never silently ignore errors
+- keep `On Error Resume Next` blocks as short as possible
+- centralize cleanup in a `CleanExit` section
+- propagate errors when appropriate
+- produce logs containing meaningful diagnostic information
 
 ---
 
@@ -471,14 +480,30 @@ CleanExit:
 
 ErrorHandler:
 
-    MsgBox _
-        "Example failed." & vbCrLf & _
-        "Error " & Err.Number & vbCrLf & _
-        Err.Description, vbCritical
+    Utils_Log.Error _
+        ProcedureName:="Example", _
+        ErrObject:=Err
 
     Resume CleanExit
 
 End Sub
+```
+
+For UI procedures only:
+
+```vb
+ErrorHandler:
+
+    Utils_Log.Error _
+        ProcedureName:="ExportLabels", _
+        ErrObject:=Err
+
+    MsgBox _
+        "The operation could not be completed." & vbCrLf & _
+        "See the application log for details.", _
+        vbExclamation
+
+    Resume CleanExit
 ```
 
 ---
@@ -486,12 +511,12 @@ End Sub
 # Golden Rules
 
 1. Never hide errors.
-2. Validate before executing.
-3. Use one error handler per procedure.
-4. Always restore Excel state.
-5. Always clean resources.
-6. Keep `Resume Next` blocks as short as possible.
-7. Report meaningful information.
-8. Let callers handle errors when appropriate.
-9. Never duplicate cleanup code.
-10. Robust code fails gracefully.
+2. Always log unexpected failures following logging rules.
+3. `MsgBox` is for users, not for developers.
+4. Validate before executing.
+5. Restore Excel state before exiting.
+6. Clean up resources in a single location.
+7. Keep `On Error Resume Next` blocks minimal.
+8. Propagate errors when appropriate.
+9. Make logs useful enough to diagnose issues without a debugger.
+10. Robust applications fail gracefully and leave a clear diagnostic trail.
