@@ -80,11 +80,11 @@ VBA-AI-Skill/
 ├── 02_Project_Architecture.md
 ├── 03_Module_Organization.md
 ├── 04_Naming_Conventions.md
-├── 05_Code_Formatting.md
-├── 06_Comments_Documentation.md
+├── 05_Error_Handling.md
+├── 06_Functions_and_Procedures.md
 ├── 07_Data_Types.md
-├── 08_Functions_and_Procedures.md
-├── 09_Error_Handling.md
+├── 08_Comments_Documentation.md
+├── 09_Code_Formatting.md
 ├── 10_Logging.md
 ├── 11_Excel_Object_Model.md
 ├── 12_Range_Best_Practices.md
