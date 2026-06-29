@@ -1,479 +1,325 @@
-# 00 - AI Principles
+# 00 - AI Principles (VBA AI Skill Foundation)
 
-**Project:** VBA AI Skill
-**Version:** 1.0.0
-**Language:** English
+## Objective
 
----
+This document defines the **core principles that govern all VBA code generation and design decisions** in this framework.
 
-# Purpose
-
-This document defines the fundamental principles that every AI assistant must follow when generating Microsoft Excel VBA code.
-
-These principles are technology-independent and apply before any coding standard, architecture guideline, or project-specific rule.
-
-The goal is to produce code that is:
-
-* Readable
-* Maintainable
-* Predictable
-* Reusable
-* Performant
-* Robust
-* Easy to review
-* Easy to debug
-* Safe for production
-
-Whenever a conflict exists between writing shorter code and writing clearer code, clarity always wins.
+It is the highest-level rule set: every other guideline is derived from it.
 
 ---
 
-# AI Mission
+# Golden Rule
 
-When generating VBA code, your objective is **not** to produce the shortest possible solution.
-
-Your objective is to produce code that an experienced developer would confidently merge into a production application without major refactoring.
-
-Always assume:
-
-* The project will grow.
-* Another developer will maintain the code.
-* The code may still exist in ten years.
-* The generated code will become part of a larger application.
+> AI must prioritize correctness, safety, and maintainability over cleverness or brevity.
 
 ---
 
-# Primary Objectives
+# 1. Determinism First
 
-The AI must optimize for the following priorities, in this exact order:
+VBA automation must be predictable.
 
-1. Correctness
-2. Reliability
-3. Readability
-4. Maintainability
-5. Reusability
-6. Performance
-7. Conciseness
+AI must ensure:
 
-Never sacrifice a higher priority for a lower one.
+- same input → same output
+- no hidden state dependencies
+- no reliance on UI state (ActiveSheet, Selection, etc.)
 
 ---
 
-# Fundamental Philosophy
+# 2. Excel is a Data Layer, Not a Processor
 
-## Rule 1
+Excel must be treated as:
 
-Write code for humans.
+> a storage and presentation system, not a computation engine.
 
-Source code is read far more often than it is written.
+Therefore:
 
-Every line should be immediately understandable.
-
----
-
-## Rule 2
-
-Explicit is better than implicit.
-
-Never rely on VBA default behavior when an explicit statement improves readability.
-
-Examples:
-
-* Explicit variable types
-* Explicit object references
-* Explicit parameter passing
-* Explicit return values
+- logic must be executed in VBA memory
+- Excel is only used for input/output
+- avoid cell-by-cell computation
 
 ---
 
-## Rule 3
+# 3. Safety Over Convenience
 
-Readability is more important than cleverness.
+AI must assume:
 
-Avoid "smart" solutions that reduce clarity.
+- files may be missing
+- data may be corrupted
+- COM objects may fail
+- users may input invalid values
 
-Simple code is preferred over impressive code.
+Therefore:
 
----
-
-## Rule 4
-
-Maintainability is more important than brevity.
-
-Never reduce the number of lines at the expense of readability.
-
-Longer but clearer code is preferred.
+- validate everything
+- fail gracefully
+- never trust external input
 
 ---
 
-## Rule 5
+# 4. Explicitness Over Implicitness
 
-Every procedure should tell a story.
+AI must always prefer:
 
-The reader should understand:
-
-* what the procedure does
-* why it exists
-* how the major steps are organized
-
-without requiring external documentation.
+- explicit variables over implicit ones
+- explicit references over global state
+- explicit control flow over hidden behavior
 
 ---
 
-# Clean Code Principles
+## Forbidden implicit behaviors
 
-The AI shall follow the following software engineering principles.
-
-## KISS
-
-Keep It Simple, Stupid.
-
-Always choose the simplest solution that correctly solves the problem.
-
-Do not introduce unnecessary abstraction.
+- ActiveSheet usage
+- implicit type conversion without checks
+- hidden dependencies between modules
 
 ---
 
-## DRY
+# 5. Performance Awareness
 
-Don't Repeat Yourself.
+AI must design code with:
 
-Duplicate logic must be extracted into reusable procedures.
+- bulk operations (arrays)
+- minimal Excel interaction
+- minimized COM calls
+- reduced loops over worksheet cells
 
-Avoid copy/paste programming.
-
----
-
-## YAGNI
-
-You Aren't Gonna Need It.
-
-Do not implement hypothetical future functionality.
-
-Generate only what is required today.
+Performance is a **design constraint**, not an optimization step.
 
 ---
 
-## Single Responsibility Principle
+# 6. Structured Architecture First
 
-Each procedure should perform one logical task.
+All generated code must respect layered architecture:
 
-Each module should represent one domain.
-
-Each class should encapsulate one concept.
-
----
-
-## Separation of Concerns
-
-Separate:
-
-* Excel interaction
-* Business logic
-* File system
-* User interface
-* Configuration
-* Logging
-* Error handling
-
-Never mix unrelated concerns.
-
----
-
-# Professional Mindset
-
-Always write production-quality code.
-
-Never generate:
-
-* demo shortcuts
-* temporary hacks
-* quick fixes
-* throwaway code
-
-Every generated solution should be suitable for long-term maintenance.
-
----
-
-# Predictability
-
-Generated code should behave predictably.
-
-Avoid surprising side effects.
-
-Avoid hidden dependencies.
-
-Avoid modifying global state unless explicitly required.
-
----
-
-# Consistency
-
-Always use consistent:
-
-* naming
-* indentation
-* formatting
-* comments
-* error handling
-* object lifecycle
-
-Consistency is more valuable than personal preference.
-
----
-
-# Defensive Programming
-
-Assume that:
-
-* parameters may be invalid
-* worksheets may not exist
-* ranges may be empty
-* files may be missing
-* COM objects may fail
-* SAP sessions may disconnect
-* users may perform unexpected actions
-
-Validate assumptions before using them.
-
-Never trust external input.
-
----
-
-# Error Prevention
-
-Prevent errors before handling them.
-
-Prefer validation over exception recovery.
-
-Examples:
-
-* Check whether a worksheet exists.
-* Check whether an object is Nothing.
-* Check whether a file exists.
-* Check whether an array has been initialized.
-* Check whether a collection contains an item.
-
----
-
-# Fail Fast
-
-Detect invalid states as early as possible.
-
-If a required condition is not met:
-
-* stop processing
-* log the problem
-* return a meaningful result
-
-Do not continue with invalid assumptions.
-
----
-
-# Code Generation Philosophy
-
-The AI must generate complete code.
-
-Avoid placeholders such as:
-
-```text
-' TODO
-' Implement here
+```
+UI Layer (UserForms)
+    ↓
+Controller Layer
+    ↓
+Business Logic (Classes)
+    ↓
+Data Layer (Excel / Files / COM)
 ```
 
-unless explicitly requested.
-
-Generated code should compile whenever sufficient information is available.
+No exceptions.
 
 ---
 
-# Refactoring Philosophy
+# 7. Separation of Concerns
 
-Prefer multiple small procedures over one large procedure.
+Each component must have a single responsibility:
 
-If a procedure exceeds approximately fifty lines, recommend extracting helper procedures.
-
-Readable architecture is preferred over monolithic implementations.
-
----
-
-# Documentation Philosophy
-
-Documentation explains:
-
-* why something exists
-* assumptions
-* business rules
-* design decisions
-
-Documentation should never simply repeat the code.
-
-Bad:
-
-```vb
-i = i + 1
-
-' Increment i
-```
-
-Good:
-
-```vb
-' Skip the header row because it contains column names.
-For i = 2 To lastRow
-```
+- UserForms → UI only
+- Modules → orchestration only
+- Classes → business logic
+- Utils → shared services (logging, helpers)
 
 ---
 
-# Performance Philosophy
+# 8. Defensive Mindset
 
-Do not optimize prematurely.
+AI must assume:
 
-Follow this order:
+> everything outside VBA memory is unreliable.
 
-1. Correctness
-2. Readability
-3. Maintainability
-4. Measure performance
-5. Optimize bottlenecks
+Therefore:
 
-Never sacrifice readability for hypothetical performance improvements.
-
----
-
-# Simplicity
-
-Prefer:
-
-* clear variables
-* intermediate variables
-* descriptive names
-
-instead of deeply nested expressions.
-
-Bad:
-
-```vb
-If Len(Trim(UCase$(value))) > 0 Then
-```
-
-Better:
-
-```vb
-cleanValue = Trim$(value)
-
-If Len(cleanValue) > 0 Then
-```
+- validate inputs early
+- check object existence
+- handle empty ranges
+- protect against type mismatch
+- log all failures
 
 ---
 
-# Object-Oriented Thinking
+# 9. Fail Loud, Fail Clearly
 
-Even though VBA is limited, think in terms of objects.
+Errors must:
 
-Group related behavior together.
-
-Avoid procedural "God modules."
-
-Prefer:
-
-* classes
-* encapsulation
-* reusable components
-
-when appropriate.
+- never be silent
+- always be logged
+- include context (module, procedure, key variables)
 
 ---
 
-# Design for Reuse
+# 10. Logging is Mandatory
 
-Write code that can be reused.
+Every meaningful operation must include:
 
-Avoid hardcoded:
+- Debug logs for development
+- Info logs for business flow
+- Error logs for failures
 
-* worksheet names
-* workbook names
-* file paths
-* constants
-* business rules
-
-Whenever possible, parameterize behavior.
+Logging is not optional.
 
 ---
 
-# Review Before Completion
+# 11. No UI Dependency in Logic
 
-Before considering generated code complete, mentally verify:
+Business logic must NEVER depend on:
 
-* Does it compile?
-* Are variables declared?
-* Are object references qualified?
-* Are objects released?
-* Are errors handled?
-* Is the naming consistent?
-* Is duplication avoided?
-* Is the logic obvious?
-* Is the code production-ready?
-
-If the answer is "No" to any question, improve the code before presenting it.
+- MsgBox
+- InputBox
+- UserForms state
+- ActiveWorkbook / ActiveSheet
 
 ---
 
-# AI Behavior Rules
+# 12. Minimize Excel Object Interaction
 
-The AI shall always:
+AI must:
 
-* Produce production-quality VBA.
-* Prefer maintainability over cleverness.
-* Prefer explicitness over implicit behavior.
-* Follow established coding standards.
-* Use descriptive names.
-* Structure code logically.
-* Suggest improvements when appropriate.
-* Explain important design decisions.
-* Recommend refactoring when beneficial.
+- avoid repeated `.Cells` access
+- avoid loops over ranges
+- batch read/write with `.Value2`
+- cache data in memory
 
 ---
 
-# AI Shall Never
+# 13. Consistency Over Flexibility
 
-The AI shall never:
+AI must prioritize:
 
-* Generate code without `Option Explicit`.
-* Depend on `ActiveWorkbook` unless explicitly requested.
-* Depend on `ActiveSheet` unless explicitly requested.
-* Depend on `Selection` unless absolutely necessary.
-* Depend on `Select` or `Activate` for automation.
-* Leave duplicated code.
-* Ignore errors silently.
-* Generate obsolete VBA practices.
-* Introduce hidden side effects.
-* Use magic numbers without explanation.
-* Prefer cleverness over readability.
-* Recommend global variables when local scope is sufficient.
-* Mix UI logic with business logic.
-* Generate partially implemented code without warning.
+- standardized patterns
+- reusable templates
+- predictable structure
+
+Even if alternative solutions exist.
 
 ---
 
-# Definition of Success
+# 14. Code Must Be Readable Without Comments
 
-Generated VBA code is considered successful only if it satisfies all of the following:
+If code requires excessive comments to be understood:
 
-* Correct
-* Readable
-* Maintainable
-* Reusable
-* Well documented
-* Fully typed
-* Properly structured
-* Robust against failures
-* Easy to review
-* Easy to extend
-* Consistent with professional software engineering standards
-
-If any of these characteristics is missing, the generated solution should be improved before delivery.
+→ it must be refactored.
 
 ---
 
-**End of Document**
+# 15. No Hidden State
+
+AI must avoid:
+
+- global variables
+- implicit module-level dependencies
+- hidden state transitions
+
+State must always be explicit and controlled.
+
+---
+
+# 16. COM, API, and External Systems Are Untrusted
+
+All external systems must be treated as:
+
+- unstable
+- slow
+- failure-prone
+
+Therefore:
+
+- always wrap COM calls
+- always handle errors
+- always release resources
+
+---
+
+# 17. Simplicity Over Cleverness
+
+AI must prefer:
+
+- simple loops over complex abstractions
+- clear logic over optimization tricks
+- explicit code over advanced VBA hacks
+
+---
+
+# 18. Refactoring is Part of Design
+
+AI must assume:
+
+> code will evolve.
+
+Therefore:
+
+- modular structure is mandatory
+- duplication must be avoided
+- long procedures must be split
+
+---
+
+# 19. No Premature Optimization
+
+AI must:
+
+- first ensure correctness
+- then ensure readability
+- then optimize performance
+
+Never optimize before clarity.
+
+---
+
+# 20. Production-Ready by Default
+
+AI output must assume:
+
+- real Excel data
+- real users
+- real failures
+- real integrations
+
+No “demo code”.
+
+---
+
+# 21. AI Responsibility Rule
+
+AI is responsible for:
+
+- architecture compliance
+- performance safety
+- error handling completeness
+- logging consistency
+- maintainability of generated code
+
+---
+
+# 22. Output Quality Standard
+
+Generated code must:
+
+- compile without modification
+- follow naming conventions
+- respect module boundaries
+- include error handling
+- include logging
+- avoid anti-patterns
+
+---
+
+# 23. Evolution Principle
+
+This framework is designed to evolve:
+
+- rules may be refined
+- patterns may be optimized
+- templates may be extended
+
+But core principles remain stable.
+
+---
+
+# Golden Summary
+
+1. Excel is I/O, not a processor.
+2. Safety is mandatory.
+3. Explicit beats implicit.
+4. Architecture is non-negotiable.
+5. Performance is a design constraint.
+6. Logging is always required.
+7. External systems are untrusted.
+8. Simplicity wins over cleverness.
+9. Refactoring is continuous.
+10. Production readiness is the default.
