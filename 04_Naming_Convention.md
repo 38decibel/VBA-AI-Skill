@@ -1,5 +1,10 @@
 # 04 - Naming Conventions
 
+Project: VBA AI Skill
+Chapter: 04 - Naming Conventions
+Version: 1.0.0
+
+---
 ## Objective
 
 Consistent naming is one of the biggest contributors to maintainable VBA code.
