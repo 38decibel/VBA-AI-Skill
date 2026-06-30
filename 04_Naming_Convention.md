@@ -1,9 +1,4 @@
 # 04 - Naming Conventions
-
-Project: VBA AI Skill
-Chapter: 04 - Naming Conventions
-Version: 1.0.0
-
 ---
 ## Objective
 
