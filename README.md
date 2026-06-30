@@ -2,11 +2,6 @@
 
 > **Enterprise-grade AI Coding Standards for Microsoft Excel VBA**
 
-Version: 1.0.0
-Author: Daniel Moindrot
-Language: English
-
-
 # Overview
 
 **VBA AI Skill** is a comprehensive coding standard designed specifically for AI coding assistants that generate Microsoft Excel VBA code.
@@ -68,8 +63,6 @@ It can also serve as an internal VBA development standard for software teams.
 
 # Repository Structure
 
-Files 01 to 27 should be created soon.
-
 ```text
 VBA-AI-Skill/
 │
@@ -103,8 +96,6 @@ VBA-AI-Skill/
 ├── 25_Anti_Patterns.md
 ├── 26_AI_Generation_Rules.md
 ├── 27_Templates.md
-│
-└── CHANGELOG.md
 ```
 
 
