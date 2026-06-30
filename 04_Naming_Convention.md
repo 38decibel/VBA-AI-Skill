@@ -1,5 +1,5 @@
 # 04 - Naming Conventions
----
+
 ## Objective
 
 Consistent naming is one of the biggest contributors to maintainable VBA code.
