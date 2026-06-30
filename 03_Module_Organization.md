@@ -1,14 +1,8 @@
-03 - Module Organization
+# 03 - Module Organization
 
-Project: VBA AI Skill
-Chapter: 03 - Module Organization
-Version: 1.0.0
+# Purpose
 
----
-
-Purpose
-
-This chapter defines the standards for organizing modules within a Microsoft Excel VBA project.
+This document defines the standards for organizing modules within a Microsoft Excel VBA project.
 
 A well-organized project improves readability, maintainability, scalability, and code discoverability.
 
@@ -16,7 +10,7 @@ The objective is to make every module immediately understandable, even to a deve
 
 ---
 
-Philosophy
+# Philosophy
 
 Modules are the primary building blocks of a VBA application.
 
@@ -26,7 +20,7 @@ A developer should be able to understand the purpose of a module simply by readi
 
 ---
 
-One Module = One Responsibility
+# One Module = One Responsibility
 
 Each module shall implement one logical concern.
 
@@ -34,6 +28,7 @@ Examples:
 
 Good
 
+```text
 Excel_Table
 Excel_Worksheet
 Excel_Formatting
@@ -52,9 +47,11 @@ Configuration
 
 SAP_MB03
 SAP_MB90
+```
 
 Bad
 
+```text
 Helpers
 Misc
 Functions
@@ -62,45 +59,51 @@ General
 Module1
 Utilities
 Various
+```
 
 Generic modules inevitably become dumping grounds.
 
 ---
 
-Maximum Module Size
+# Maximum Module Size
 
 A module should remain reasonably small.
 
 Recommended limits:
 
-Metric| Recommendation
-Public procedures| < 20
-Total procedures| < 40
-Code size| Preferably under 1000 lines
+| Metric | Recommendation |
+|---|---|
+| Public procedures | < 20 |
+| Total procedures | < 40 |
+| Code size | Preferably under 1000 lines |
 
 When a module becomes difficult to navigate, split it.
 
 ---
 
-Domain-Based Organization
+# Domain-Based Organization
 
 Modules should be grouped by domain rather than by technical implementation.
 
 Good
 
+```text
 Business_Orders
 Business_Invoices
 Business_Products
+```
 
 Instead of
 
+```text
 Functions1
 Functions2
 Functions3
+```
 
 ---
 
-Module Naming
+# Module Naming
 
 Module names should use PascalCase.
 
@@ -108,6 +111,7 @@ Words should be separated by underscores.
 
 Examples
 
+```text
 Constants
 Configuration
 
@@ -126,102 +130,126 @@ SAP_Logon
 
 Business_Validation
 Business_Report
+```
 
 ---
 
-Module Prefixes
+# Module Prefixes
 
 The following prefixes are recommended.
 
-Business
+## Business
 
 Contains business rules.
 
+```text
 Business_
+```
 
 Examples
 
+```text
 Business_Orders
 Business_Validation
 Business_Pricing
+```
 
 ---
 
-Excel
+## Excel
 
 Contains Excel-specific operations.
 
+```text
 Excel_
+```
 
 Examples
 
+```text
 Excel_Table
 Excel_Worksheet
 Excel_Formatting
+```
 
 ---
 
-Utils
+## Utils
 
 Contains reusable generic helpers.
 
+```text
 Utils_
+```
 
 Examples
 
+```text
 Utils_Array
 Utils_File
 Utils_Date
 Utils_String
+```
 
 ---
 
-Config
+## Config
 
 Application configuration.
 
+```text
 Configuration
+```
 
 or
 
+```text
 Config
+```
 
 ---
 
-Logging
+## Logging
 
 Logging service.
 
+```text
 Logging
+```
 
 or
 
+```text
 Utils_Logging
+```
 
 depending on project size.
 
 ---
 
-External Systems
+## External Systems
 
 External integrations should be grouped.
 
 Examples
 
+```text
 SAP_
 Outlook_
 Word_
 REST_
 SQL_
+```
 
 ---
 
-Module Header
+# Module Header
 
 Every standard module shall begin with a documentation header.
 
 Example
 
+```vba
 ' =============================================================================
 '@Module      Excel_Table
 '@Description Excel table helper functions.
@@ -237,32 +265,37 @@ Example
 
 Option Explicit
 Option Private Module
+```
 
 The header documents ownership and responsibility.
 
 ---
 
-Option Explicit
+# Option Explicit
 
 Every module must include
 
+```vba
 Option Explicit
+```
 
 without exception.
 
 ---
 
-Option Private Module
+# Option Private Module
 
 Unless a module intentionally exposes procedures to other VBA projects, use
 
+```vba
 Option Private Module
+```
 
 This reduces the public API surface.
 
 ---
 
-Procedure Ordering
+# Procedure Ordering
 
 Procedures should follow a consistent order.
 
@@ -281,33 +314,37 @@ This makes navigation predictable.
 
 ---
 
-Constants
+# Constants
 
 Module-specific constants belong at the beginning of the module.
 
 Example
 
+```vba
 Private Const C_DEFAULT_TIMEOUT As Long = 5000
+```
 
 Application-wide constants belong in the Constants module.
 
 ---
 
-Module Variables
+# Module Variables
 
 Declare module variables immediately after constants.
 
 Example
 
+```vba
 Private m_logger As clsLogger
 
 Private m_isInitialized As Boolean
+```
 
 Avoid scattered declarations.
 
 ---
 
-Public Interface
+# Public Interface
 
 The public procedures define the module interface.
 
@@ -319,12 +356,13 @@ Everything else should be Private.
 
 ---
 
-Private Helpers
+# Private Helpers
 
 Complex public procedures should delegate work to private helper procedures.
 
 Example
 
+```text
 ReadDocument()
 
 ↓
@@ -346,17 +384,19 @@ BuildResult()
 ↓
 
 Cleanup()
+```
 
 Private procedures improve readability.
 
 ---
 
-Logical Sections
+# Logical Sections
 
 Large modules should be divided into logical sections.
 
 Example
 
+```text
 Constants
 
 Module Variables
@@ -372,15 +412,17 @@ Business Logic
 Private Helpers
 
 Cleanup
+```
 
 ---
 
-Avoid Circular Dependencies
+# Avoid Circular Dependencies
 
 Modules should not depend on each other recursively.
 
 Avoid
 
+```text
 Module A
 
 ↓
@@ -394,65 +436,63 @@ Module C
 ↓
 
 Module A
+```
 
 Circular dependencies complicate maintenance.
 
 ---
 
-Avoid God Modules
+# Avoid God Modules
 
 A God Module performs unrelated tasks.
 
 Bad
 
+```text
 Utils
 
 Contains
 
 Files
-
 Dates
-
 Strings
-
 Logging
-
 SAP
-
 Excel
-
 JSON
-
 Printing
+```
 
 Good
 
+```text
 Utils_File
-
 Utils_Date
-
 Utils_String
-
 Utils_JSON
+```
 
 Small focused modules are easier to maintain.
 
 ---
 
-Cross-Domain Calls
+# Cross-Domain Calls
 
 Business modules should not directly manipulate Excel whenever possible.
 
 Instead
 
+```text
 Business
 
 ↓
 
 Excel
+```
 
 rather than
 
+```text
 Excel
 
 ↓
@@ -462,13 +502,15 @@ Business
 ↓
 
 Excel
+```
 
 ---
 
-Internal Dependencies
+# Internal Dependencies
 
 Prefer this dependency flow.
 
+```text
 Business
 
 ↓
@@ -482,12 +524,13 @@ Utilities
 ↓
 
 Infrastructure
+```
 
 Never reverse this dependency without justification.
 
 ---
 
-Reusability
+# Reusability
 
 Modules should be reusable.
 
@@ -497,19 +540,25 @@ Example
 
 Bad
 
+```vba
 Public Function GetSAPMaterial()
+```
 
 inside
 
+```text
 Utils_String
+```
 
 Good
 
+```text
 SAP_MM03
+```
 
 ---
 
-Initialization
+# Initialization
 
 If initialization is required, expose a dedicated Initialize procedure.
 
@@ -517,25 +566,29 @@ Avoid implicit initialization whenever possible.
 
 Example
 
+```vba
 Public Sub Initialize()
 
 End Sub
+```
 
 ---
 
-Cleanup
+# Cleanup
 
 Modules managing resources should expose cleanup procedures when appropriate.
 
 Example
 
+```vba
 Public Sub Shutdown()
 
 End Sub
+```
 
 ---
 
-Documentation
+# Documentation
 
 Every public procedure should include a documentation header.
 
@@ -545,7 +598,7 @@ Avoid commenting obvious statements.
 
 ---
 
-Module Cohesion
+# Module Cohesion
 
 Everything inside a module should contribute to the same responsibility.
 
@@ -553,47 +606,43 @@ If a procedure feels "out of place", it probably belongs elsewhere.
 
 ---
 
-AI Module Generation Rules
+# AI Module Generation Rules
 
 When generating new modules, the AI shall:
 
-- Create focused modules.
-- Avoid generic names.
-- Include a module header.
-- Use Option Explicit.
-- Use Option Private Module unless otherwise required.
-- Keep the public interface minimal.
-- Organize procedures consistently.
-- Separate public and private procedures.
-- Extract helper procedures when complexity increases.
-- Avoid oversized modules.
-- Recommend splitting large modules.
+* Create focused modules.
+* Avoid generic names.
+* Include a module header.
+* Use Option Explicit.
+* Use Option Private Module unless otherwise required.
+* Keep the public interface minimal.
+* Organize procedures consistently.
+* Separate public and private procedures.
+* Extract helper procedures when complexity increases.
+* Avoid oversized modules.
+* Recommend splitting large modules.
 
 ---
 
-AI Review Checklist
+# AI Review Checklist
 
 Before generating a module, verify:
 
-- Does the module have one responsibility?
-- Is the name explicit?
-- Are unrelated procedures absent?
-- Is the public API minimal?
-- Is the header complete?
-- Are declarations organized?
-- Is the module scalable?
-- Would another developer immediately understand its purpose?
+* Does the module have one responsibility?
+* Is the name explicit?
+* Are unrelated procedures absent?
+* Is the public API minimal?
+* Is the header complete?
+* Are declarations organized?
+* Is the module scalable?
+* Would another developer immediately understand its purpose?
 
 If any answer is negative, reorganize the module before presenting it.
 
 ---
 
-Guiding Principle
+# Guiding Principle
 
-«A module should represent a single domain of responsibility. If its purpose cannot be described in one sentence, it probably does too much.»
+> «A module should represent a single domain of responsibility. If its purpose cannot be described in one sentence, it probably does too much.»
 
 Well-organized modules reduce maintenance costs, improve discoverability, and make large VBA applications easier to evolve over time.
-
----
-
-End of Chapter 03
