@@ -18,9 +18,9 @@ It is used for both human review and AI self-validation before code is considere
 
 ## 1. Module & Header Compliance
 
-- [ ] Module header present: `@Module / @Description / @Dependencies / @Author / @Version / @Updated`
+- [ ] Module header present (module name, description, dependencies, author); no hand-maintained `@Version` / `@Updated` fields
 - [ ] Source file begins with a copyright title block
-- [ ] Version follows `MAJOR.MINOR.PATCH`
+- [ ] Procedures ordered by the stepdown rule (public first, then private helpers in call order)
 - [ ] `Option Explicit` present
 - [ ] `Option Private Module` present (standard modules)
 - [ ] One module = one responsibility (no "God modules")
@@ -49,7 +49,8 @@ It is used for both human review and AI self-validation before code is considere
 - [ ] Boolean functions prefixed `Is` / `Has`
 - [ ] Getters prefixed `Get`
 - [ ] Event handlers prefixed `On`, kept as thin wrappers (delegate to a real function)
-- [ ] Classes prefixed `cls`
+- [ ] Classes prefixed `cls`; interfaces prefixed `I` (no `cls`); class fields prefixed `m_` (no `p`)
+- [ ] `ByRef` output parameters prefixed `out`; no underscores in procedure names except event handlers and `Interface_Member`
 - [ ] Modules in PascalCase with domain prefix (`SAP_`, `Utils_`)
 
 ---
@@ -68,7 +69,9 @@ It is used for both human review and AI self-validation before code is considere
 ## 5. Function Design
 
 - [ ] One function = one responsibility
-- [ ] Max ~50 lines per function; longer functions flagged and split
+- [ ] ~50 lines per procedure is the review threshold (>100 must be refactored); loop bodies extracted; cyclomatic complexity kept low
+- [ ] Every parameter has an explicit `ByVal` / `ByRef`; no `Call` keyword; parentheses only to capture a return value
+- [ ] Expected failures exposed as `TryXxx` functions with an `out` parameter
 - [ ] SAP-interacting functions return `Boolean` (success/failure) or `Object` (result/`Nothing`) â€” never `String`
 - [ ] No magic numbers â€” use `Constants` or named variables
 - [ ] Guard clauses used for early exit instead of deep nesting
@@ -77,32 +80,34 @@ It is used for both human review and AI self-validation before code is considere
 
 ## 6. Error Handling
 
-- [ ] `On Error GoTo ErrHandler` present at the top of every Public function
-- [ ] `Cleanup:` label present, used to release all object references
-- [ ] `ErrHandler:` label present, calls `LogError` with format `"ModuleName.FunctionName: description"`
-- [ ] `On Error Resume Next` limited to 2â€“3 lines max, then restored with `On Error GoTo ErrHandler`
-- [ ] No error swallowed silently â€” every catch path logs
-- [ ] Errors re-raised to caller when appropriate
+- [ ] Handler policy follows the procedure role (chapter 05): entry points always log once with `Utils_Log.Error`;
+      procedures owning a resource or application state clean up in `CleanExit` and re-raise; plain helpers have no handler
+- [ ] Labels are exactly `CleanExit` and `CleanFail`; the nominal path falls through to `CleanExit`, the error path ends with `Resume CleanExit`
+- [ ] Resources (objects, files, `Application` state) are released in `CleanExit`, never just before `Exit Sub`
+- [ ] Contract violations (`Nothing`, empty or negative argument) raise through `Utils_Guard` with an `AppError` code; no silent `Exit Sub` for programming mistakes
+- [ ] `On Error Resume Next` limited to a tiny `Try` function or 1-2 lines, then restored with `On Error GoTo CleanFail` (never `On Error GoTo 0` in a procedure that has a handler)
+- [ ] No error swallowed silently; each error is logged once, at the entry point, not at every level
+- [ ] Errors re-raised to the caller when appropriate
 
 ---
 
 ## 7. Logging
 
-- [ ] `LogDebug` / `LogInfo` / `LogError` used â€” never bare `Debug.Print`, never `MsgBox` for debugging
+- [ ] `Utils_Log.Debug` / `Info` / `Warning` / `Error` used â€” never bare `Debug.Print`, never `MsgBox` for debugging
 - [ ] Format respected: `[LEVEL] HH:MM:SS | Module.Function | Message`
-- [ ] `LogDebug` at function entry for key parameters
-- [ ] `LogInfo` for meaningful results
-- [ ] `LogError` present in every `ErrHandler`
+- [ ] `Utils_Log.Debug` at function entry for key parameters
+- [ ] `Utils_Log.Info` for meaningful results
+- [ ] `Utils_Log.Error Err, "Module.Procedure"` present in every entry-point `CleanFail`
 - [ ] Logging does not degrade performance inside loops
 
 ---
 
 ## 8. Object Lifecycle (COM & General)
 
-- [ ] `Set obj = Nothing` in `Cleanup` for every object declared in the function
+- [ ] `Set obj = Nothing` in `CleanExit` for every object declared in the function
 - [ ] No SAP COM object reference stored beyond function scope (except `m_session` in `SAP_Logon`)
 - [ ] Object use guarded with `If Not obj Is Nothing Then`
-- [ ] Late binding used for COM unless early binding is explicitly justified
+- [ ] COM delivered with explicit late binding (`As Object` + `CreateObject`); early binding only while developing or in controlled environments; no accidental late binding (`Sheets`, `!` operator)
 - [ ] No COM calls inside performance-critical loops
 - [ ] After `CloseSession`, the session variable is set to `Nothing`
 
@@ -119,7 +124,7 @@ It is used for both human review and AI self-validation before code is considere
 - [ ] Cleanup sequencing respected: session restore happens before object release
 - [ ] Popup windows (`wnd[1]`) detected conditionally, not assumed present
 - [ ] Functions that depend on window/title state (e.g. `ExtractTotalItemsFromTitle`) are called only after navigation completes
-- [ ] `newSes.FindById("wnd[0]").Close` called in `Cleanup` to close the opened session
+- [ ] `newSes.FindById("wnd[0]").Close` called in `CleanExit` to close the opened session
 - [ ] No SAP session used without `If Not ses Is Nothing` guard
 - [ ] Statusbar message type checked before acting on result (`g_SB_SUCCESS`, `g_SB_ERROR`, etc.)
 
@@ -128,7 +133,7 @@ It is used for both human review and AI self-validation before code is considere
 ## 10. Excel Object Model Usage
 
 - [ ] No `ActiveWorkbook` / `ActiveSheet` / `Selection` / `Select` / `Activate` in business or SAP logic
-- [ ] Explicit worksheet/workbook references used (`wsDashboard`, not `Sheets("Dashboard")`)
+- [ ] Explicit worksheet/workbook references used (`wsDashboard`, not `Sheets("Dashboard")`; `Worksheets` rather than `Sheets`; no needless alias of a CodeName)
 - [ ] `ListObject` used for structured data; constants store table names (e.g. `g_TABLE_MB90_DOCS`)
 - [ ] `.Value2` used for bulk data read/write operations
 - [ ] `LastRow` / bounds computed dynamically, never hardcoded
@@ -163,6 +168,9 @@ It is used for both human review and AI self-validation before code is considere
 - [ ] File existence verified before file access; file handles closed properly
 - [ ] No hardcoded file paths â€” all paths come from `Constants`
 - [ ] No implicit assumptions about SAP session/screen state
+- [ ] Variables declared at the point of first use; one identifier = one purpose
+- [ ] UserForms created with `New` (never the default instance), `QueryClose` hides the form, form data in a model class
+- [ ] Dependencies injected through interfaces where an external system must be replaceable (chapter 28); unit tests exist for business rules (chapter 29)
 
 ---
 
@@ -187,7 +195,7 @@ It is used for both human review and AI self-validation before code is considere
 ## 16. Refactoring Quality
 
 - [ ] No duplicated logic (DRY) â€” shared logic extracted into reusable helpers
-- [ ] Functions over ~50 lines split into sub-functions
+- [ ] Functions over ~50 lines reviewed; over 100 lines split into sub-functions
 - [ ] Naming revisited if it no longer reflects actual responsibility
 - [ ] No accidental behavior change introduced by refactor
 
@@ -209,9 +217,10 @@ Reject the code if it contains any of:
 
 - `ActiveSheet` / `ActiveWorkbook` / `Select` / `Activate` in logic layers
 - Cell-by-cell loops on large datasets
-- Missing error handling on a Public function
+- Missing handler on an entry point, or cleanup outside `CleanExit`
+- `Call` keyword, obsolete constructs, silent guard clauses for contract violations
 - Business or SAP logic inside a UserForm
-- COM objects not released in `Cleanup`
+- COM objects not released in `CleanExit`
 - Silent error suppression (`On Error Resume Next` with no recovery/log)
 - New SAP session opened without the full session-management pattern
 - Hardcoded SAP `FindById` paths repeated without a constant
@@ -230,11 +239,11 @@ If the answer is no â†’ refactor required before merge.
 ## Golden Rules Summary
 
 1. Architecture and separation of concerns must be respected.
-2. Every Public function has structured error handling and a `Cleanup` block.
+2. Every entry point has a handler; resource owners clean up in `CleanExit` and re-raise.
 3. Every SAP session follows the canonical save/capture/restore pattern.
 4. Excel and SAP are both treated as unreliable I/O â€” validate, don't assume.
 5. No magic numbers, no hardcoded paths â€” everything lives in `Constants`.
-6. Logging must be consistent (`LogDebug`/`LogInfo`/`LogError`), never `Debug.Print` or `MsgBox`.
+6. Logging must be consistent (`Utils_Log.Debug` / `Info` / `Warning` / `Error`), never `Debug.Print` or `MsgBox`.
 7. No business logic in UI, events, or `clsSapEvents`.
 8. Functions stay under ~50 lines and do one thing.
 9. Comments are in English, unaccented, and explain WHY.

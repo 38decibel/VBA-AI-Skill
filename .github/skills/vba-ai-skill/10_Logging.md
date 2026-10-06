@@ -210,15 +210,12 @@ Set ws = Worksheets("Config")
 Good:
 
 ```vb
-On Error Resume Next
-Set ws = Worksheets("Config")
-
-If ws Is Nothing Then
+If Not Utils_Excel.TryGetWorksheet(wb, "Config", outWorksheet:=ws) Then
     Utils_Log.Warning "Init", "Config worksheet not found"
 End If
-
-On Error GoTo 0
 ```
+
+The `Try` function confines `On Error Resume Next` to one tiny procedure (chapter 05).
 
 ---
 
@@ -257,7 +254,7 @@ End If
 # Error Logging Pattern
 
 ```vb
-ErrorHandler:
+CleanFail:
 
     Utils_Log.Error Err, "ExportLabels"
 
@@ -343,7 +340,7 @@ When generating VBA code, AI must:
 ```vb
 Public Sub ExportLabels()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     Utils_Log.Info "ExportLabels", "Start export"
 
@@ -356,7 +353,7 @@ CleanExit:
     Utils_Log.Info "ExportLabels", "Finished export"
     Exit Sub
 
-ErrorHandler:
+CleanFail:
 
     Utils_Log.Error Err, "ExportLabels"
 

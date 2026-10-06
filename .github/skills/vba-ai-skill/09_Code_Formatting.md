@@ -57,9 +57,9 @@ Example:
 
 ```vb
 Dim lastRow As Long
-Dim currentRow As Long
-
 lastRow = FindLastRow(ws)
+
+Dim currentRow As Long
 
 For currentRow = 2 To lastRow
 
@@ -67,7 +67,7 @@ For currentRow = 2 To lastRow
 
 Next currentRow
 
-Utils_Log.Info "Export completed"
+Utils_Log.Info "Export", "Completed"
 ```
 
 Avoid multiple consecutive blank lines.
@@ -105,6 +105,7 @@ Correct:
 
 ```vb
 Utils_Log.Info _
+    "Export", _
     "Export started for worksheet '" & ws.Name & "'"
 ```
 
@@ -119,19 +120,24 @@ Break long instructions after commas or operators.
 Example:
 
 ```vb
-Call ExportWorksheet( _
+ExportWorksheet _
     ws, _
     outputFolder, _
-    overwriteExisting)
+    overwriteExisting
 ```
 
-Do not split expressions arbitrarily.
+Never use the `Call` keyword (chapter 06). Do not split expressions arbitrarily.
+
+When splitting a list of named arguments, keep each name, its `:=` operator and its value on the same line.
+
+Never end a comment line with ` _`: VBA would treat the next line as part of the comment.
 
 ---
 
 # Procedure Spacing
 
-Leave one blank line between declarations and executable code.
+Declare each variable close to its first use, followed by its assignment, with a blank line before
+and after the pair. Do not stack all declarations at the top of a procedure.
 
 Example:
 
@@ -139,11 +145,12 @@ Example:
 Public Sub Export()
 
     Dim ws As Worksheet
+    Set ws = wsOrders
+
     Dim lastRow As Long
-
-    Set ws = Worksheets("Orders")
-
     lastRow = FindLastRow(ws)
+
+    ExportRows ws, lastRow
 
 End Sub
 ```
@@ -152,12 +159,11 @@ End Sub
 
 # Variable Declarations
 
-Declare one variable per line.
+Declare one variable per line, at the point where it becomes relevant.
 
 Correct:
 
 ```vb
-Dim ws As Worksheet
 Dim rowIndex As Long
 Dim article As String
 ```
@@ -167,6 +173,14 @@ Avoid:
 ```vb
 Dim ws As Worksheet, rowIndex As Long, article As String
 ```
+
+(in VBA only the last variable of such a line gets the stated type; the others are `Variant`).
+
+A variable declared at the top and used 40 lines later forces readers to scroll back, hides unused
+declarations, and invites reusing a variable for a different purpose. One identifier, one purpose.
+
+Exception: a variable that must be visible in the error handler or `CleanExit` section
+(for example `errNumber`, or a COM object released in cleanup) is declared before the `On Error` statement.
 
 ---
 
@@ -197,12 +211,13 @@ Private Type ...
 
 Private variables
 
-Public procedures
+Public procedure(s), highest level of abstraction first
 
-Private procedures
+Private procedures, in the order they are called (decreasing abstraction)
 ```
 
-Maintain this order throughout the project.
+Maintain this order throughout the project. Within a module, a reader should meet the summary first
+and the details afterwards, regardless of whether a procedure is a `Function` or a `Sub`.
 
 ---
 
@@ -412,12 +427,15 @@ Use guard clauses to reduce nesting.
 Preferred:
 
 ```vb
-If ws Is Nothing Then Exit Sub
+Utils_Guard.NotNothing ws, "ws"
 
 If lastRow < 2 Then Exit Sub
 
 ProcessWorksheet ws
 ```
+
+A contract violation (such as a `Nothing` argument) raises through `Utils_Guard`; an expected data
+situation (such as an empty sheet) exits, with a log entry when it matters (chapter 05).
 
 Avoid deeply nested code.
 
@@ -481,8 +499,10 @@ When generating VBA code, AI should:
 
 - use 4-space indentation
 - insert blank lines between logical blocks
-- declare one variable per line
+- declare one variable per line, close to its first use
 - keep lines under 120 characters
+- never use the `Call` keyword
+- never end a comment with a line-continuation underscore
 - use meaningful spacing around operators
 - avoid inline statements
 - use continuation characters correctly
@@ -509,15 +529,15 @@ Good:
 ```vb
 Option Explicit
 
-Public Sub CopyValues()
+Public Sub CopyValues(ByVal ws As Worksheet)
 
     Dim rowIndex As Long
 
     For rowIndex = 1 To 10
 
-        If Cells(rowIndex, 1).Value <> "" Then
+        If Len(CStr(ws.Cells(rowIndex, 1).Value2)) > 0 Then
 
-            Cells(rowIndex, 2).Value = Cells(rowIndex, 1).Value
+            ws.Cells(rowIndex, 2).Value2 = ws.Cells(rowIndex, 1).Value2
 
         End If
 

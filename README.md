@@ -99,7 +99,9 @@ VBA-AI-Skill/
             |-- 24_Code_Review_Checklist.md
             |-- 25_Anti_Patterns.md
             |-- 26_AI_Generation_Rules.md
-            `-- 27_Templates.md
+            |-- 27_Templates.md
+            |-- 28_Interfaces_And_Dependency_Injection.md
+            `-- 29_Unit_Testing.md
 ```
 
 

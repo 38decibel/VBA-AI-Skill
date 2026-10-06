@@ -292,7 +292,7 @@ Use classes for:
 Example:
 
 ```vb
-Dim customer As Customer
+Dim customer As clsCustomer
 ```
 
 ---

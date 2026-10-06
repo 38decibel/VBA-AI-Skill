@@ -90,32 +90,50 @@ Set olApp = Nothing
 
 # 4. Late Binding vs Early Binding
 
-## Preferred: Late Binding
+## Delivered code: explicit late binding
 
 ```vb
 Dim olApp As Object
 Set olApp = CreateObject("Outlook.Application")
 ```
 
-### Advantages:
+Advantages:
 
 - no references required
 - avoids version issues
-- more stable across environments
+- more stable across environments (the user's Office version may differ from the developer's)
 
----
+Late binding must be **deliberate and explicit**: `As Object` with `CreateObject`. Accidental late binding
+(an untyped `Variant`, `Sheets(...)`, the `!` operator) is forbidden (chapter 25).
 
-## Early Binding (restricted use)
+## Development: early binding
 
 ```vb
 Dim olApp As Outlook.Application
 ```
 
-Only allowed when:
+Early binding gives IntelliSense, compile-time checking, Object Browser support, and constants such as
+`olMailItem`. It is the right choice while developing and for fully controlled environments
+(a single Office version, references guaranteed).
 
-- environment is fully controlled
-- performance is critical
-- version compatibility is guaranteed
+## Recommended: develop early, deliver late
+
+Use conditional compilation so the code is written with early binding and delivered with late binding:
+
+```vb
+#Const EarlyBinding = False
+
+#If EarlyBinding Then
+    Dim olApp As Outlook.Application
+    Set olApp = New Outlook.Application
+#Else
+    Dim olApp As Object
+    Set olApp = CreateObject("Outlook.Application")
+#End If
+```
+
+Named constants of the library (`olMailItem`) do not exist without the reference: define them as `Private Const`
+in the late-bound branch, never as magic numbers.
 
 ---
 
@@ -128,10 +146,11 @@ Set olApp = CreateObject("Outlook.Application")
 ' no cleanup
 ```
 
-Good:
+Good: release in `CleanExit`, so the release also happens when an error occurred (chapter 05):
 
 ```vb
-Set olApp = Nothing
+CleanExit:
+    Set olApp = Nothing
 ```
 
 ---
@@ -150,18 +169,27 @@ COM failures are frequent:
 ## Required pattern
 
 ```vb
-On Error GoTo ErrorHandler
+Dim olApp As Object   ' declared before the handler: released in CleanExit
+Dim errNumber As Long
+Dim errSource As String
+Dim errDescription As String
 
-Dim olApp As Object
+On Error GoTo CleanFail
+
 Set olApp = CreateObject("Outlook.Application")
 
 ' logic
 
-Exit Sub
-
-ErrorHandler:
-    Utils_Log.Error Err, "COM.Outlook"
+CleanExit:
     Set olApp = Nothing
+    If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
 ```
 
 ---
@@ -389,7 +417,9 @@ Next i
 
 When generating COM automation code, AI must:
 
-- always use late binding unless justified
+- use explicit late binding for delivered code (`As Object` + `CreateObject`), early binding while developing
+- release COM objects in `CleanExit`, never just before `Exit Sub`
+- never use the `Call` keyword
 - always release COM objects
 - never embed business logic in COM layer
 - always include error handling
@@ -406,16 +436,14 @@ When generating COM automation code, AI must:
 
 ```vb
 ' Business Layer
-Call EmailService.SendOrderConfirmation(order)
-
+EmailService.SendOrderConfirmation order
 ' Service Layer
-Public Sub SendOrderConfirmation(order As Order)
+Public Sub SendOrderConfirmation(ByVal order As clsOrder)
 
     Dim body As String
     body = order.BuildEmailBody()
 
-    Call OutlookService.SendEmail(order.Email, "Order", body)
-
+    OutlookService.SendEmail order.Email, "Order", body
 End Sub
 ```
 
@@ -430,6 +458,6 @@ End Sub
 5. Always log interactions.
 6. Avoid COM inside loops.
 7. Never mix COM and business logic.
-8. Prefer late binding.
+8. Develop early-bound, deliver explicitly late-bound.
 9. Minimize COM calls.
 10. Treat COM as external untrusted system.
