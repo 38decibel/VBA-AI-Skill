@@ -63,13 +63,16 @@ Examples:
 Example:
 
 ```vb
-Dim ws As Worksheet
-Set ws = wsConfig
+wsConfig.Range("B2").Value2 = "X"   ' use the CodeName directly
 ```
 
+Only create a local `Worksheet` variable when a procedure receives a sheet as a parameter or when
+the sheet is chosen at run time. Do not copy a global identifier (a CodeName, `ThisWorkbook`)
+into a differently named local variable just to shorten it: the same object ends up with two names.
+
 ```vb
-Set ws = wsExport
-Set ws = wsLog
+wsExport.Range("A1").Value2 = "Header"
+wsLog.Range("A1").Value2 = "Entry"
 ```
 
 ### Forbidden for system sheets
@@ -78,6 +81,9 @@ Set ws = wsLog
 Worksheets("Config")
 Sheets("Export")
 ```
+
+Prefer `Worksheets` over `Sheets` for data sheets as well: `Sheets` returns an `Object` that may be a chart sheet,
+which turns a typed `Worksheet` assignment into a late-bound surprise.
 
 Reason:
 - tab names can change
@@ -142,8 +148,8 @@ Set wb = ActiveWorkbook
 ## System sheets (preferred)
 
 ```vb
-Set ws = wsConfig
-Set ws = wsExport
+wsConfig.Range("A1").Value2 = "Title"
+wsExport.Range("A1").Value2 = "Header"
 ```
 
 ## Data sheets (dynamic)
@@ -196,13 +202,13 @@ Bad:
 
 ```vb
 Selection.Copy
-Selection.Value = "X"
+Selection.Value2 = "X"
 ```
 
 Good:
 
 ```vb
-ws.Range("A1").Value = "X"
+ws.Range("A1").Value2 = "X"
 ```
 
 ---
@@ -219,7 +225,7 @@ ws.Range("A1").Select
 Good:
 
 ```vb
-ws.Range("A1").Value = "X"
+ws.Range("A1").Value2 = "X"
 ```
 
 ---
@@ -230,7 +236,7 @@ Use `With` only when it improves readability.
 
 ```vb
 With ws
-    .Cells(1, 1).Value = "Header"
+    .Cells(1, 1).Value2 = "Header"
 End With
 ```
 
@@ -272,14 +278,14 @@ Bad (slow):
 
 ```vb
 For i = 1 To 10000
-    value = ws.Cells(i, 1).Value
+    value = ws.Cells(i, 1).Value2
 Next i
 ```
 
 Good (fast):
 
 ```vb
-data = ws.Range("A1:A10000").Value
+data = ws.Range("A1:A10000").Value2
 ```
 
 ---
@@ -289,13 +295,13 @@ data = ws.Range("A1:A10000").Value
 Bad:
 
 ```vb
-ws.Cells(i, 1).Value = value
+ws.Cells(i, 1).Value2 = value
 ```
 
 Good:
 
 ```vb
-ws.Range("A1:A10000").Value = data
+ws.Range("A1:A10000").Value2 = data
 ```
 
 ---
@@ -397,6 +403,8 @@ When generating VBA code, AI must:
 - validate objects before use
 - minimize COM calls
 - avoid UsedRange unless justified
+- use `Worksheets`, not `Sheets`, and read/write `.Value2` explicitly (never rely on a default member)
+- never alias a global identifier (CodeName, `ThisWorkbook`) with a differently named local variable
 
 ---
 
@@ -406,13 +414,13 @@ Bad:
 
 ```vb
 Range("A1").Select
-Selection.Value = "Test"
+Selection.Value2 = "Test"
 ```
 
 Good:
 
 ```vb
-ws.Cells(1, 1).Value = "Test"
+ws.Cells(1, 1).Value2 = "Test"
 ```
 
 ---

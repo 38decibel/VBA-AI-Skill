@@ -23,7 +23,8 @@ Always prefer:
 Avoid:
 
 - cryptic abbreviations
-- Hungarian notation everywhere
+- Hungarian notation everywhere (type prefixes such as `str`, `lng`, `obj`; the only accepted type-like
+  prefixes are `cls` on classes and `frm`, `btn`, `txt`... on UserForms and controls, chapter 16)
 - meaningless suffixes
 - generic names like:
 
@@ -47,6 +48,29 @@ Use camelCase by default.
 
 Alternative styles (lowercase_with_underscores / UPPERCASE_WITH_UNDERSCORES)
 are allowed when required by external interfaces or existing module style.
+
+## Underscores
+
+An underscore in a procedure name is reserved for **event handlers** (`btnExport_Click`, `Worksheet_Change`)
+and for the module-domain prefixes of this project (`Utils_Log`, `SAP_Session`). Anywhere else, a name with an
+underscore looks like an event handler or an interface member and confuses both the reader and the VBE
+(an `Implements` member is named `IShape_Draw`). Use PascalCase for procedures and camelCase for variables.
+
+## One identifier, one purpose
+
+A variable has one meaning for its whole life. Never reuse `i`, `temp` or `result` for a second purpose
+in the same procedure: declare a new, well-named variable instead.
+
+## Scope prefixes
+
+| Scope | Prefix | Example |
+|-------|--------|---------|
+| Module-level (private) | `m_` | `m_orderId` |
+| Global (`Public` in a standard module, avoid) | `g_` | `g_Config` |
+| Constant | `C_` or UPPER_CASE (project style) | `C_DEFAULT_TIMEOUT` |
+| `ByRef` output parameter | `out` | `outWorksheet` |
+
+The prefix `p` is not used for class fields.
 
 Good:
 
@@ -365,19 +389,17 @@ custType
 
 # Module Names
 
-Modules should describe their responsibility.
-
-Examples:
+Standard modules use a domain prefix followed by a responsibility (see chapter 03):
 
 ```
-LabelBuilder
-ExcelHelpers
-WorksheetHelpers
-SapImport
-FileSystemHelpers
-DateHelpers
-Configuration
+Utils_Log
+Utils_Guard
+Excel_Table
+SAP_Session
+Business_LabelBuilder
 ```
+
+A macro entry point module is named after the macro (`ExportLabels`), one macro per module (chapter 06).
 
 Avoid:
 
@@ -391,14 +413,24 @@ Test
 
 # Class Names
 
-Use singular nouns.
+Class modules use the `cls` prefix and a singular noun:
 
 ```vb
-Customer
-LabelPrinter
-Configuration
-Logger
+clsCustomer
+clsLabelPrinter
+clsConfiguration
+clsLogger
 ```
+
+Interfaces (abstract classes used with `Implements`) use the `I` prefix without `cls`:
+
+```vb
+ICommand
+IFileProvider
+ILogger
+```
+
+See chapter 15 and chapter 28.
 
 ---
 
@@ -558,6 +590,9 @@ When generating VBA code, AI should:
 - never invent multiple names for the same concept
 - keep singular/plural consistent
 - avoid one-letter variables except loop indexes
+- use `m_` for module-level fields, `out` for output parameters, `cls` for classes, `I` for interfaces
+- never use underscores in procedure names except for event handlers
+- never reuse a variable for a second purpose
 
 ---
 
@@ -582,7 +617,7 @@ Dim currentArticle As String
 Dim rowIndex As Long
 
 For rowIndex = 2 To lastRow
-    currentArticle = wsOrders.Cells(rowIndex, 1).Value
+    currentArticle = wsOrders.Cells(rowIndex, 1).Value2
 Next rowIndex
 ```
 

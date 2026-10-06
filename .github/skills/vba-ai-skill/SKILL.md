@@ -23,13 +23,16 @@ Use this skill for any VBA work in this repository. The detailed annexes below a
 - For code review, read [Code Review Checklist](./24_Code_Review_Checklist.md).
 - For generation rules, read [AI Generation Rules](./26_AI_Generation_Rules.md).
 - For templates, read [Templates](./27_Templates.md).
+- For interfaces, dependency injection and factories, read [Interfaces and Dependency Injection](./28_Interfaces_And_Dependency_Injection.md).
+- For unit testing, read [Unit Testing](./29_Unit_Testing.md).
 
 ## Mandatory operating rules
 
 - Prefer production-grade VBA, not tutorial code.
 - Treat Excel as an I/O layer, not the place where business logic lives.
 - Keep logic explicit, deterministic, and easy to extend.
-- Validate inputs early and fail fast.
+- Validate inputs early and fail fast: contract violations raise through `Utils_Guard`, they are never swallowed.
+- Apply the error-handling policy by procedure role (entry point / owns state / plain helper) with `CleanExit` and `CleanFail`.
 - Use `Utils_Log` for diagnostics and never hide unexpected errors.
 - Use the supplied templates instead of inventing new procedure shapes.
 - When reviewing code, use the full checklist before considering the task complete.
@@ -43,9 +46,10 @@ When the task is to generate or refactor code, apply the rules in this order:
 3. [architecture and organization](./02_Project_Architecture.md)
 4. [style and conventions](./04_Naming_Convention.md)
 5. [generation rules](./26_AI_Generation_Rules.md)
-6. [procedures and functions](./27_Templates.md)
+6. [procedures and functions](./06_Procedures_And_Functions.md)
 7. [error handling](./05_Error_Handling.md)
 8. [performance](./21_Performance.md)
 9. [templates](./27_Templates.md)
+10. [interfaces and dependency injection](./28_Interfaces_And_Dependency_Injection.md) and [unit testing](./29_Unit_Testing.md) when classes, external systems or testability are involved
 
 When the task is to review code, use the [code review checklist](./24_Code_Review_Checklist.md) as the authoritative checklist, then verify any conflicting rule against the higher-level documents above.

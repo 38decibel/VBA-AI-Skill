@@ -254,23 +254,21 @@ Example
 
 ```vba
 ' =============================================================================
-'@Module      Excel_Table
-'@Description Excel table helper functions.
-'
-'@Dependencies
-'   Constants
-'   Logging
-'
-'@Author      Daniel Moindrot
-'@Version     1.0.0
-'@Updated     YYYY-MM-DD
+' Module      Excel_Table
+' Description Excel table helper functions.
+' Dependencies Utils_Constants, Utils_Log
+' Author      Daniel Moindrot
 ' =============================================================================
 
 Option Explicit
 Option Private Module
 ```
 
-The header documents ownership and responsibility.
+The header documents ownership and responsibility, after the copyright title block required by chapter 08.
+
+Do not maintain `@Version` / `@Updated` fields: they are never kept up to date by hand, and the version control
+history is the source of truth. Do not use `'@Name`-style tags unless the project deliberately uses Rubberduck
+annotations (they are interpreted as annotations by that tool, not as plain comments).
 
 ---
 
@@ -300,20 +298,20 @@ This reduces the public API surface.
 
 # Procedure Ordering
 
-Procedures should follow a consistent order.
+Procedures follow the **stepdown rule**: the module reads like a story, from the highest level of abstraction
+to the lowest.
 
-Recommended order:
-
-1. Module constants
-2. Module variables
+1. `Option Explicit` / `Option Private Module`
+2. Constants
 3. Enumerations
-4. Public Types
-5. Public Functions
-6. Public Subs
-7. Private Functions
-8. Private Subs
+4. Types
+5. Module variables
+6. Public procedures, highest level of abstraction first
+7. Private procedures, in the order they are called, at decreasing levels of abstraction
 
-This makes navigation predictable.
+Do not group procedures by `Sub` versus `Function` or by alphabetical order: a reader should meet the summary
+first and the details afterwards. Event handlers and class members (properties) follow the class structure
+of chapter 15.
 
 ---
 

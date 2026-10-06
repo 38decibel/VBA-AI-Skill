@@ -67,16 +67,17 @@ Events must ONLY:
 ```vb
 Private Sub Worksheet_Change(ByVal Target As Range)
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     Utils_Log.Debug "Event", "Worksheet_Change triggered"
 
-    Call EventController.HandleWorksheetChange(Me, Target)
-
+    EventController.HandleWorksheetChange Me, Target
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Worksheet_Change"
+    Resume CleanExit
 End Sub
 ```
 
@@ -170,7 +171,7 @@ Next cell
 Good:
 
 ```vb
-Call EventController.HandleChange(Target)
+EventController.HandleChange Target
 ```
 
 ---
@@ -180,16 +181,17 @@ Call EventController.HandleChange(Target)
 ```vb
 Private Sub Workbook_Open()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     Utils_Log.Info "Workbook", "Application started"
 
-    Call AppController.Initialize
-
+    AppController.Initialize
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Workbook_Open"
+    Resume CleanExit
 End Sub
 ```
 
@@ -202,16 +204,17 @@ End Sub
 ```vb
 Private Sub Worksheet_Change(ByVal Target As Range)
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     If Target.CountLarge > 1 Then Exit Sub
 
-    Call EventController.HandleCellChange(Me, Target)
-
+    EventController.HandleCellChange Me, Target
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Worksheet_Change"
+    Resume CleanExit
 End Sub
 ```
 
@@ -279,15 +282,20 @@ Utils_Log.Debug "Event", "Change detected in " & Target.Address
 Mandatory pattern:
 
 ```vb
-On Error GoTo ErrorHandler
+On Error GoTo CleanFail
 
 ' logic
 
-Exit Sub
+CleanExit:
+    Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "EventName"
+    Resume CleanExit
 ```
+
+An event handler is an entry point: it logs once and never lets the error escape to Excel.
+If it changes application state (`EnableEvents`), the restore belongs in `CleanExit` (chapter 05).
 
 Never allow silent failures.
 
@@ -306,7 +314,7 @@ End If
 Good:
 
 ```vb
-Call PricingController.ApplyRules(Target)
+PricingController.ApplyRules Target
 ```
 
 ---
@@ -405,16 +413,17 @@ End Sub
 ```vb
 Private Sub Worksheet_Change(ByVal Target As Range)
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     If Target.CountLarge > 1 Then Exit Sub
 
-    Call EventController.HandleWorksheetChange(Me, Target)
-
+    EventController.HandleWorksheetChange Me, Target
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Worksheet_Change"
+    Resume CleanExit
 End Sub
 ```
 

@@ -46,7 +46,8 @@ But improve:
 Refactor when you see:
 
 - duplicated logic
-- long procedures (>50 lines)
+- long procedures (>50 lines: review; >100 lines: refactor now)
+- cyclomatic complexity above ~5, or arrow-shaped code with deeply nested loops and conditions
 - deep nesting
 - repeated Excel calls
 - mixed responsibilities
@@ -121,6 +122,14 @@ Move logic into:
 - functions
 - classes
 - service modules
+
+---
+
+## Step 1b: Extract loop bodies
+
+Extracting the body of a loop into its own parameterised procedure is almost always a good idea:
+the arrow-shaped code flattens, the line count drops, each procedure has fewer reasons to fail, and the
+extracted procedure can be tested alone (chapter 29). Give it a name that states the action performed on one item.
 
 ---
 
@@ -329,6 +338,9 @@ Break logic into:
 - pure functions
 - isolated classes
 - deterministic outputs
+- classes that receive their external dependencies through interfaces (chapter 28)
+
+See chapter 29 for unit testing principles.
 
 ---
 
@@ -383,7 +395,9 @@ When generating refactored VBA code, AI must:
 - preserve behavior exactly
 - reduce duplication
 - simplify structure
-- extract methods logically
+- extract methods logically (loop bodies first)
+- remove `Call`, obsolete constructs and silent guard clauses encountered on the way (chapter 25)
+- move declarations next to first use and remove stale ones
 - introduce classes when needed
 - improve naming clarity
 - eliminate Excel cell-by-cell operations

@@ -1,4 +1,4 @@
-﻿# 27 - Templates (VBA Code Patterns Library)
+# 27 - Templates (VBA Code Patterns Library)
 
 ## Objective
 
@@ -20,270 +20,453 @@ They are the **reference implementations** that all generated code must follow.
 
 > Never reinvent patterns already defined in templates.
 
+Conventions shared by all templates:
+
+- labels are always `CleanExit` and `CleanFail`
+- no `Call` keyword, and no parentheses around the arguments of a `Sub` call
+- parameters are always explicitly `ByVal` (or `ByRef` when intentional)
+- variables are declared where they are first needed, one `Dim` per variable
+- contract violations raise through `Utils_Guard`; expected data situations are logged as `Warning`
+- `Utils_Log` signatures follow chapter 10: `Info source, message` and `Error Err, source`
+
 ---
 
-# 1. Standard Procedure Template
+# 1. Entry Point Template (macro, button, `Workbook_Open`)
 
-## Base structure (MANDATORY)
+Handler mandatory: log once, resume to the single exit point.
 
 ```vb
-Public Sub ProcedureName()
+Public Sub ExportLabels()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
-    Utils_Log.Debug "ProcedureName", "Start"
+    Utils_Log.Info "ExportLabels", "Start"
 
     ' Main logic goes here.
 
-    Utils_Log.Info "ProcedureName", "Completed"
+    Utils_Log.Info "ExportLabels", "Completed"
 
 CleanExit:
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "ProcedureName"
+CleanFail:
+    Utils_Log.Error Err, "ExportLabels"
     Resume CleanExit
+
+End Sub
+```
+
+For a user-initiated entry point, add the user message in `CleanFail`:
+
+```vb
+CleanFail:
+    Utils_Log.Error Err, "ExportLabels"
+    MsgBox _
+        "The operation could not be completed." & vbCrLf & _
+        "See the application log for details.", _
+        vbExclamation
+    Resume CleanExit
+```
+
+---
+
+# 2. Procedure That Owns State (clean up, then re-raise)
+
+Use when the procedure changes Excel settings, holds a COM object, a SAP session or a file handle.
+The error is **not** logged here: the caller that finally handles it logs it once.
+
+```vb
+Public Sub LoadOrders(ByVal ws As Worksheet)
+
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    Utils_Guard.NotNothing ws, "ws"
+
+    On Error GoTo CleanFail
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+
+    ' Main logic goes here.
+
+CleanExit:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    If errNumber <> 0 Then
+        Err.Raise errNumber, errSource, errDescription
+    End If
+
+    Exit Sub
+
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 2. Function Template
+# 3. Plain Helper Function (no handler)
+
+No resource, no recovery: validate and let errors propagate.
 
 ```vb
-Public Function FunctionName(ByVal inputValue As String) As String
+Public Function NormalizeArticle(ByVal article As String) As String
 
-    On Error GoTo ErrorHandler
+    Utils_Guard.NotEmpty article, "article"
 
-    Dim result As String
+    NormalizeArticle = UCase$(Trim$(article))
 
-    result = ""
-
-    ' logic here
-
-    FunctionName = result
-    Exit Function
-
-ErrorHandler:
-    Utils_Log.Error Err, "FunctionName"
-    FunctionName = ""
 End Function
 ```
 
 ---
 
-# 3. Excel Bulk Processing Template (VALUE2)
+# 4. Try Function (expected failure)
 
-## Standard pattern
+`Resume Next` lives in a tiny dedicated function; the result is returned through an `out` parameter.
+
+```vb
+Public Function TryGetWorksheet( _
+    ByVal wb As Workbook, _
+    ByVal sheetName As String, _
+    ByRef outWorksheet As Worksheet) As Boolean
+
+    Utils_Guard.NotNothing wb, "wb"
+
+    Set outWorksheet = Nothing
+
+    On Error Resume Next
+    Set outWorksheet = wb.Worksheets(sheetName)
+    On Error GoTo 0
+
+    TryGetWorksheet = Not outWorksheet Is Nothing
+
+End Function
+```
+
+Call site:
+
+```vb
+Dim wsOrders As Worksheet
+
+If Not Utils_Excel.TryGetWorksheet(wb, "Orders", outWorksheet:=wsOrders) Then
+    Utils_Log.Warning "ImportOrders", "Orders worksheet not found"
+    Exit Sub
+End If
+```
+
+---
+
+# 5. Excel Bulk Processing Template (Value2)
+
+Plain helper: guards and data situations, no handler. The table is assumed to have at least two columns,
+so `Value2` is always a two-dimensional array.
 
 ```vb
 Public Sub ProcessTable(ByVal lo As ListObject)
 
-    On Error GoTo ErrorHandler
+    Utils_Guard.NotNothing lo, "lo"
 
-    If lo Is Nothing Then Exit Sub
-    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then
+
+        Utils_Log.Warning "ProcessTable", "Table has no data rows", "Table=" & lo.Name
+        Exit Sub
+
+    End If
 
     Dim data As Variant
     data = lo.DataBodyRange.Value2
 
-    Dim i As Long
-    For i = 1 To UBound(data, 1)
+    Dim rowIndex As Long
 
-        If data(i, 1) <> "" Then
-            data(i, 2) = data(i, 1)
+    For rowIndex = 1 To UBound(data, 1)
+
+        If Len(CStr(data(rowIndex, 1))) > 0 Then
+            data(rowIndex, 2) = data(rowIndex, 1)
         End If
 
-    Next i
+    Next rowIndex
 
     lo.DataBodyRange.Value2 = data
 
     Utils_Log.Info "ProcessTable", "Completed"
 
-    Exit Sub
-
-ErrorHandler:
-    Utils_Log.Error Err, "ProcessTable"
 End Sub
 ```
 
 ---
 
-# 4. Dictionary Pattern Template
+# 6. Dictionary Pattern Template
 
 ```vb
-Public Sub BuildDictionary()
+Public Function BuildCustomerDictionary(ByVal lo As ListObject) As Object
 
-    Dim dict As Object
-    Set dict = CreateObject("Scripting.Dictionary")
+    Utils_Guard.NotNothing lo, "lo"
+
+    Dim dictCustomers As Object
+    Set dictCustomers = CreateObject("Scripting.Dictionary")
+
+    If lo.DataBodyRange Is Nothing Then
+        Set BuildCustomerDictionary = dictCustomers
+        Exit Function
+    End If
 
     Dim data As Variant
     data = lo.DataBodyRange.Value2
 
-    Dim i As Long
+    Dim rowIndex As Long
+    Dim customerKey As String
 
-    For i = 1 To UBound(data, 1)
-        If Not dict.Exists(data(i, 1)) Then
-            dict.Add data(i, 1), data(i, 2)
+    For rowIndex = 1 To UBound(data, 1)
+
+        customerKey = CStr(data(rowIndex, 1))
+
+        If Not dictCustomers.Exists(customerKey) Then
+            dictCustomers.Add customerKey, data(rowIndex, 2)
         End If
-    Next i
 
-    Utils_Log.Info "BuildDictionary", "Keys=" & dict.Count
+    Next rowIndex
 
-End Sub
+    Utils_Log.Debug "BuildCustomerDictionary", "Keys=" & dictCustomers.Count
+
+    Set BuildCustomerDictionary = dictCustomers
+
+End Function
 ```
 
 ---
 
-# 5. UserForm Event Template
+# 7. UserForm Event Template
+
+Entry point: thin handler that delegates to a controller (chapter 16).
 
 ```vb
 Private Sub btnExecute_Click()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     Utils_Log.Info "UserForm", "Execute clicked"
 
-    Call Controller.ExecuteAction(txtInput.Value)
+    ExecuteController.RunExecute txtInput.Value
 
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "UserForm.btnExecute_Click"
+    Resume CleanExit
+
+End Sub
+```
+
+Standard form closing (hide, never unload):
+
+```vb
+Private Sub UserForm_QueryClose(ByRef Cancel As Integer, ByRef CloseMode As Integer)
+
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        OnFormCancelled
+    End If
+
 End Sub
 ```
 
 ---
 
-# 6. Event Handler Template (Worksheet)
+# 8. Event Handler Template (Worksheet)
 
 ```vb
 Private Sub Worksheet_Change(ByVal Target As Range)
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     If Target.CountLarge > 1 Then Exit Sub
 
     Utils_Log.Debug "Event", "Change detected: " & Target.Address
 
-    Call EventController.HandleChange(Me, Target)
+    EventController.HandleChange Me, Target
 
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Worksheet_Change"
+    Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 7. COM Automation Template (Outlook Example)
+# 9. COM Automation Template (Outlook Example)
+
+The COM object is released in `CleanExit`, with or without error. The error is re-raised after cleanup.
 
 ```vb
-Public Sub SendEmail(ByVal toAddr As String, ByVal subject As String, ByVal body As String)
+Public Sub SendEmail(ByVal toAddress As String, ByVal subject As String, ByVal body As String)
 
-    On Error GoTo ErrorHandler
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
 
-    Dim olApp As Object
-    Dim mail As Object
+    Dim outlookApp As Object
+    Dim mailItem As Object
 
-    Set olApp = CreateObject("Outlook.Application")
-    Set mail = olApp.CreateItem(0)
+    Utils_Guard.NotEmpty toAddress, "toAddress"
 
-    mail.To = toAddr
-    mail.Subject = subject
-    mail.Body = body
-    mail.Send
+    On Error GoTo CleanFail
 
-    Set mail = Nothing
-    Set olApp = Nothing
+    Set outlookApp = CreateObject("Outlook.Application")
+    Set mailItem = outlookApp.CreateItem(0)
 
-    Utils_Log.Info "COM.Outlook", "Email sent to " & toAddr
+    mailItem.To = toAddress
+    mailItem.Subject = subject
+    mailItem.Body = body
+    mailItem.Send
+
+    Utils_Log.Info "COM.Outlook", "Email sent to " & toAddress
+
+CleanExit:
+    Set mailItem = Nothing
+    Set outlookApp = Nothing
+
+    If errNumber <> 0 Then
+        Err.Raise errNumber, errSource, errDescription
+    End If
 
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "COM.Outlook.SendEmail"
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 8. File System Template
+# 10. File System Template
+
+The file handle is closed in `CleanExit`, so an error never leaves the file locked.
 
 ```vb
 Public Sub WriteFile(ByVal filePath As String, ByVal content As String)
 
-    On Error GoTo ErrorHandler
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
 
     Dim fso As Object
+    Dim textFile As Object
+
+    Utils_Guard.NotEmpty filePath, "filePath"
+
+    On Error GoTo CleanFail
+
     Set fso = CreateObject("Scripting.FileSystemObject")
+    Set textFile = fso.OpenTextFile(filePath, 8, True)
 
-    Dim ts As Object
-    Set ts = fso.OpenTextFile(filePath, 8, True)
-
-    ts.WriteLine content
-    ts.Close
-
-    Set ts = Nothing
-    Set fso = Nothing
+    textFile.WriteLine content
 
     Utils_Log.Info "FileSystem", "File written: " & filePath
 
+CleanExit:
+    If Not textFile Is Nothing Then textFile.Close
+
+    Set textFile = Nothing
+    Set fso = Nothing
+
+    If errNumber <> 0 Then
+        Err.Raise errNumber, errSource, errDescription
+    End If
+
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "FileSystem.WriteFile"
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 9. Safe Guard Clause Template
+# 11. Guard Clause Template
+
+Contract violations raise a custom error. Expected data situations log a warning and exit.
 
 ```vb
-Public Sub SafeProcess(ByVal value As Variant)
+Public Sub ExportWorksheet(ByVal ws As Worksheet, ByVal outputFolder As String)
 
-    If IsEmpty(value) Then Exit Sub
-    If value = "" Then Exit Sub
-    If Not IsNumeric(value) Then Exit Sub
+    Utils_Guard.NotNothing ws, "ws"
+    Utils_Guard.NotEmpty outputFolder, "outputFolder"
+
+    If ws.Cells(ws.Rows.Count, 1).End(xlUp).Row < 2 Then
+
+        Utils_Log.Warning "ExportWorksheet", "No data rows", "Sheet=" & ws.Name
+        Exit Sub
+
+    End If
 
     ' logic here
 
 End Sub
 ```
 
+The `Utils_Guard` module and the `AppError` enumeration are defined in chapter 05.
+
 ---
 
-# 10. Initialization Template
+# 12. Initialization Template
+
+Entry point of the application (composition root, chapter 28).
 
 ```vb
-Public Sub Init()
+Public Sub Initialize()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
-    Utils_Log.Info "Init", "Starting initialization"
+    Utils_Log.Info "Initialize", "Starting initialization"
 
-    Call LoadConfiguration
-    Call PrepareEnvironment
+    LoadConfiguration
+    PrepareEnvironment
 
-    Utils_Log.Info "Init", "Completed"
+    Utils_Log.Info "Initialize", "Completed"
 
+CleanExit:
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "Init"
+CleanFail:
+    Utils_Log.Error Err, "Initialize"
+    Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 11. Safe Excel State Template
+# 13. Safe Excel State Template
 
 ```vb
-Public Sub SafeExcelOperation()
+Public Sub RunWithSafeExcelState()
 
-    On Error GoTo ErrorHandler
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo CleanFail
 
     Application.ScreenUpdating = False
     Application.EnableEvents = False
@@ -292,89 +475,124 @@ Public Sub SafeExcelOperation()
     ' logic here
 
 CleanExit:
-    Application.ScreenUpdating = True
-    Application.EnableEvents = True
     Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    If errNumber <> 0 Then
+        Err.Raise errNumber, errSource, errDescription
+    End If
+
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "SafeExcelOperation"
+CleanFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
     Resume CleanExit
+
 End Sub
 ```
 
 ---
 
-# 12. Refactoring Template Pattern
+# 14. Orchestration Template (high level, reads like a story)
+
+The public entry point sits at the top and calls private procedures of decreasing abstraction.
 
 ```vb
 Public Sub MainProcess()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
-    Call ValidateInput
-    Call ProcessData
-    Call ExportData
+    ValidateInput
+    ProcessData
+    ExportData
 
     Utils_Log.Info "MainProcess", "Completed"
 
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "MainProcess"
+    Resume CleanExit
+
+End Sub
+
+Private Sub ValidateInput()
+    ' ...
+End Sub
+
+Private Sub ProcessData()
+    ' ...
+End Sub
+
+Private Sub ExportData()
+    ' ...
 End Sub
 ```
 
 ---
 
-# 13. Class Module Template
+# 15. Class Module Template
+
+Private fields use the `m_` prefix. No public fields. No `ActiveSheet`/`Selection`.
 
 ```vb
 Option Explicit
 
-Private pValue As String
+Private m_value As String
 
 Public Sub Init(ByVal value As String)
-    pValue = value
+
+    Utils_Guard.NotEmpty value, "value"
+
+    m_value = value
+
 End Sub
 
-Public Function GetValue() As String
-    GetValue = pValue
-End Function
+Public Property Get Value() As String
+    Value = m_value
+End Property
 ```
+
+For classes that must be created already valid (factory method, interfaces, dependency injection),
+see chapter 28.
 
 ---
 
-# 14. Logging Pattern Template
+# 16. Logging Pattern Template
 
 ```vb
 Utils_Log.Debug "Module", "Message"
 Utils_Log.Info "Module", "Message"
+Utils_Log.Warning "Module", "Message", "Context=..."
 Utils_Log.Error Err, "Module.Procedure"
 ```
 
 ---
 
-# 15. AI Usage Rule
+# 17. AI Usage Rule
 
 AI must:
 
 - prefer templates over custom patterns
 - not reinvent standard structures
 - ensure consistency across modules
-- always include error handling template
-- always include logging template
+- choose the template that matches the procedure role (entry point, state owner, plain helper, `Try`)
 - always respect performance templates
 
 ---
 
-# 16. Anti-Template Warning
+# 18. Anti-Template Warning
 
 Never generate:
 
-- unstructured procedures
-- missing error handling
-- missing logging
+- unstructured entry points without a handler
+- handlers that only log and re-raise in plain helpers
+- cleanup placed before `Exit Sub` outside `CleanExit`
+- the `Call` keyword
 - direct Excel cell loops
 - COM without cleanup
 - unmanaged events
@@ -384,12 +602,12 @@ Never generate:
 # Golden Rules
 
 1. Always use templates as default.
-2. Never omit error handling.
-3. Always include logging.
-4. Prefer bulk operations.
-5. Keep UI, logic, and data separated.
-6. Always clean COM objects.
-7. Always protect Excel state.
-8. Use guard clauses.
-9. Keep procedures small and focused.
+2. Match the template to the procedure role.
+3. Never skip cleanup: it belongs in `CleanExit`.
+4. Always log handled failures once.
+5. Prefer bulk operations.
+6. Keep UI, logic, and data separated.
+7. Always clean COM objects.
+8. Always protect Excel state.
+9. Use guard clauses that raise for contract violations.
 10. Standardization beats creativity in VBA.

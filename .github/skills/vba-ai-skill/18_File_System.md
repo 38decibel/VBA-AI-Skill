@@ -280,14 +280,10 @@ Utils_Log.Error Err, "FileSystem"
 Detect locked files:
 
 ```vb
-On Error Resume Next
-Set wb = Workbooks.Open(filePath)
-
-If Err.Number <> 0 Then
-    Utils_Log.Error Err, "File locked: " & filePath
+If Not Utils_File.TryOpenWorkbook(filePath, outWorkbook:=wb) Then
+    Utils_Log.Warning "Utils_File", "File locked or unreadable", "Path=" & filePath
     Exit Sub
 End If
-On Error GoTo 0
 ```
 
 ---

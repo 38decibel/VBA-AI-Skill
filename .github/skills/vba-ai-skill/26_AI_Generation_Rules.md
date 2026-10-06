@@ -70,31 +70,41 @@ AI MUST:
 AI MUST:
 
 - validate all inputs
-- check `Nothing` before use
+- check `Nothing` before use: raise through `Utils_Guard` for contract violations, never exit silently
 - validate arrays with bounds checks
 - use `.Exists` for dictionaries
 - handle empty ranges safely
-- implement full error handling
+- apply the error-handling policy of chapter 05 according to the procedure role
 
 ---
 
 # 5. Error Handling Standard
 
-Every non-trivial procedure and every public entry point MUST include:
+The handler policy depends on the **role** of the procedure (chapter 05):
+
+| Role | Handler |
+|------|---------|
+| Entry point (macro, event, button, `Workbook_Open`) | Always: log once with `Utils_Log.Error`, never let the error escape |
+| Owns a resource or application state | Clean up in `CleanExit`, then re-raise |
+| Plain helper, `Try` function | No handler; guard clauses raise through `Utils_Guard` |
+
+Standard structure for an entry point:
 
 ```vb
-On Error GoTo ErrorHandler
+On Error GoTo CleanFail
 
 ' logic
 
-Exit Sub
+CleanExit:
+    Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "Module.Procedure"
+    Resume CleanExit
 ```
 
-Trivial private helpers may use guard clauses without a full error block when no
-resource management or external I/O is involved.
+Labels are always `CleanExit` and `CleanFail`. Never use `Call`, never `On Error GoTo 0` inside a procedure
+with a handler, never release resources outside `CleanExit`.
 
 ---
 
@@ -121,7 +131,9 @@ AI MUST:
 - avoid vague names (`DoStuff`, `ProcessData`)
 - use English identifiers
 - keep a consistent naming style in each module (`PascalCase` or `lowerCamelCase`)
-- avoid type-based Hungarian notation; `m_` / `g_` visibility prefixes are allowed when useful
+- avoid type-based Hungarian notation; `m_` / `g_` scope prefixes, `cls` for classes, `I` for interfaces and `out` for output parameters are the project conventions
+- reserve underscores in procedure names for event handlers and `Interface_Member`
+- declare each variable where it is first used, one identifier = one purpose
 
 ---
 
@@ -131,6 +143,7 @@ AI MUST:
 
 - avoid `ActiveSheet`, `ActiveWorkbook`
 - avoid `Select` and `Activate`
+- use `Worksheets` rather than `Sheets`; read and write `.Value2` explicitly
 - use explicit worksheet references
 - use ListObjects for structured data
 - treat Excel as I/O layer only
@@ -141,8 +154,8 @@ AI MUST:
 
 AI MUST:
 
-- use late binding unless explicitly required
-- release all COM objects (`Set obj = Nothing`)
+- use explicit late binding for delivered code (`As Object` + `CreateObject`); early binding is for development
+- release all COM objects in `CleanExit`
 - avoid COM inside loops
 - encapsulate COM in service modules
 - never mix COM with business logic
@@ -178,6 +191,8 @@ AI MUST:
 AI MUST:
 
 - keep UI logic only in forms
+- create forms with `New`, never show the default instance; handle `QueryClose` and hide the form
+- keep form data in a model class with `IsValid` / `IsCancelled`
 - delegate processing to controllers
 - avoid Excel access in forms
 - avoid business logic in UI
@@ -192,7 +207,9 @@ AI MUST:
 - use classes for business entities
 - enforce single responsibility
 - keep fields private
-- use Init pattern instead of constructors
+- use an `Init` method, or a `Create` factory returning an interface (chapter 28), instead of constructors
+- name classes `clsXxx` and interfaces `IXxx`; inject dependencies instead of creating them
+- write unit-testable code and propose tests for business rules (chapter 29)
 - avoid God classes
 
 ---
@@ -298,7 +315,7 @@ Avoid overengineering.
 ```vb
 Public Sub ProcessOrders()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
     Dim data As Variant
     data = lo.DataBodyRange.Value2
@@ -314,10 +331,13 @@ Public Sub ProcessOrders()
 
     Utils_Log.Info "ProcessOrders", "Completed"
 
+CleanExit:
     Exit Sub
 
-ErrorHandler:
+CleanFail:
     Utils_Log.Error Err, "ProcessOrders"
+    Resume CleanExit
+
 End Sub
 ```
 
@@ -329,7 +349,8 @@ Before finalizing code, AI must ensure:
 
 - [ ] no ActiveSheet / Select usage
 - [ ] arrays used for bulk data
-- [ ] error handling present
+- [ ] error handling matches the procedure role (CleanExit / CleanFail)
+- [ ] no `Call`, no obsolete constructs, every parameter explicit `ByVal` / `ByRef`
 - [ ] logging included
 - [ ] no business logic in UI/events
 - [ ] no COM leaks

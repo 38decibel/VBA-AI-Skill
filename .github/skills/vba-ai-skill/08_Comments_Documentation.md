@@ -14,6 +14,8 @@ Enterprise requirements also apply:
 - each source file starts with a title comment block containing copyright information
 - commented-out code is forbidden
 - if a line contains a comment, no code may appear after that comment on the same line
+- a comment line never ends with ` _` (VBA would join the next line to the comment)
+- no banner or separator comments (`'=====`) between sections of a module: use small procedures instead
 
 ---
 
@@ -107,7 +109,7 @@ Example:
 ```vb
 ' Workaround: Excel API fails when range exceeds 10k rows
 ' Split export into chunks
-Call ExportInChunks(ws)
+ExportInChunks ws
 ```
 
 ---
@@ -270,7 +272,7 @@ Never leave commented-out code in production.
 Bad:
 
 ```vb
-' Call OldExportMethod(ws)
+' OldExportMethod ws
 ```
 
 Remove it or use version control (Git).

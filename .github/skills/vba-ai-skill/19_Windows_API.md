@@ -133,13 +133,13 @@ Business code must NEVER call API directly.
 Bad:
 
 ```vb
-Call GetTickCount()
+GetTickCount
 ```
 
 Good:
 
 ```vb
-Call TimerService.GetElapsedTime()
+TimerService.GetElapsedTime
 ```
 
 ---
@@ -183,7 +183,7 @@ Dim result As Long
 result = GetTickCount()
 
 If result = 0 Then
-    Utils_Log.Error "API", "GetTickCount failed"
+    Utils_Log.Warning "Utils_Api", "GetTickCount returned 0"
 End If
 ```
 

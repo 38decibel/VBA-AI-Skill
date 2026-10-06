@@ -1,4 +1,4 @@
-﻿# 16 - UserForms
+# 16 - UserForms
 
 ## Objective
 
@@ -19,7 +19,7 @@ They are strictly a **presentation layer**.
 
 # Golden Rule
 
-> UserForms only collect input and trigger actions â€” they do not process business logic.
+> UserForms only collect input and trigger actions. They do not process business logic.
 
 ---
 
@@ -43,6 +43,7 @@ A UserForm can:
 - display data
 - collect user input
 - validate basic fields (format only)
+- implement UI logic (enable a control when the command can run, show a label when the model is invalid)
 - call business procedures
 - show messages (limited)
 
@@ -78,7 +79,105 @@ Next i
 
 ---
 
-# 4. Event-Driven Architecture
+# 4. Instance Lifecycle
+
+A UserForm module is a class that comes with a global **default instance** carrying the form's name.
+Code that refers to that global name acts on the default instance, which is not necessarily the one displayed
+(and not the one you get if the form is created with `New`).
+
+Rules:
+
+- **Never** show or use the default instance (`frmExport.Show`).
+- Treat the default instance like the default instance of any class: stateless, never displayed.
+- Always create a new instance and show that instance:
+
+```vb
+Dim dialog As frmExport
+Set dialog = New frmExport
+dialog.Show
+```
+
+- The code that creates the form is responsible for its lifetime, so it can safely read the form's model afterwards.
+
+---
+
+# 5. Hide, Never Self-Destruct (`QueryClose`)
+
+The [X] button of the control box **destroys** the form instance. Code that created the form then holds an
+invalid reference, and code that reads the form's controls after closing fails.
+
+Every modal form handles `QueryClose` so that the only way to close it is to **hide** it:
+
+```vb
+Private Sub UserForm_QueryClose(ByRef Cancel As Integer, ByRef CloseMode As Integer)
+
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        OnFormCancelled
+    End If
+
+End Sub
+
+Private Sub OnFormCancelled()
+
+    m_model.IsCancelled = True
+    Me.Hide
+
+End Sub
+```
+
+Buttons use `Me.Hide` as well; the form is never `Unload`ed by its own code.
+
+---
+
+# 6. Form Model
+
+Extract the form's data into a model class instead of reading and writing controls from outside.
+Controls manipulate the model; the caller consumes the model.
+
+A model typically exposes:
+
+- a read/write property for each editable field
+- read-only properties for data the controls need (items of a list box)
+- an `IsCancelled` flag set when the user cancels
+- an `IsValid` property that returns `True` when all required values are present and valid
+
+```vb
+Option Explicit
+
+Private m_orderId As String
+
+Public IsCancelled As Boolean ' replace with a property in production code
+
+Public Property Get OrderId() As String
+    OrderId = m_orderId
+End Property
+
+Public Property Let OrderId(ByVal newValue As String)
+    m_orderId = newValue
+End Property
+
+Public Property Get IsValid() As Boolean
+    IsValid = Len(m_orderId) > 0
+End Property
+```
+
+(Fields are never public in production classes, chapter 15: expose `IsCancelled` through a `Property Get/Let`.)
+
+`IsValid` drives the enabled state of the Accept button, so invalid input can never be submitted.
+
+---
+
+# 7. Modal vs Modeless
+
+- A **modal** form is a transactional dialog: show it, wait, then consume the model (Accept) or do nothing (Cancel).
+  This is the default and the easiest to reason about.
+- A **modeless** form returns immediately and interactions become asynchronous (event-driven). Use it only when needed,
+  and give it a presenter object that owns and shows the form instance.
+
+---
+
+# 8. Event-Driven Architecture
 
 UserForms are event-driven.
 
@@ -92,29 +191,39 @@ Each event must remain **small and orchestrated**.
 
 ---
 
-# 5. Button Click Pattern (Standard)
+# 9. Button Click Pattern (Standard)
+
+A button click is an **entry point**: it needs a handler (chapter 05).
 
 ## Correct structure
 
 ```vb
 Private Sub btnExport_Click()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
-    Utils_Log.Info "UserForm", "Export button clicked"
+    Utils_Log.Info "frmExport", "Export button clicked"
 
-    Call ExportController.RunExport(txtOrderId.Value)
+    ExportController.RunExport m_model
 
+    Me.Hide
+
+CleanExit:
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "UserForm.btnExport_Click"
+CleanFail:
+    Utils_Log.Error Err, "frmExport.btnExport_Click"
+    Resume CleanExit
+
 End Sub
 ```
 
+A command button should invoke a command, not implement side effects:
+the logic lives in a controller module (procedural) or in a command object (`ICommand`, chapter 28).
+
 ---
 
-# 6. No Business Logic in UI
+# 10. No Business Logic in UI
 
 Bad:
 
@@ -127,34 +236,58 @@ End If
 Good:
 
 ```vb
-discount = order.CalculateDiscount(txtQty.Value)
+discount = order.CalculateDiscount()
 ```
 
 ---
 
-# 7. UserForm â†’ Controller Pattern
+# 11. UserForm to Controller Pattern
 
 UserForms must delegate logic:
 
 ```
-UserForm â†’ Module (Controller) â†’ Class Modules â†’ Excel
+UserForm -> Module (Controller) -> Class Modules -> Excel
 ```
 
 Example:
 
 ```vb
-Call ExportController.RunExport(orderId)
+ExportController.RunExport m_model
 ```
 
 ---
 
-# 8. Data Binding Rules
-
-## Load data into UI
+# 12. The Calling Code (Presenter / Controller)
 
 ```vb
-txtOrderId.Value = order.Id
-txtQty.Value = order.Quantity
+Public Sub ShowExportDialog()
+
+    Dim model As clsExportModel
+    Set model = New clsExportModel
+
+    Dim dialog As frmExport
+    Set dialog = New frmExport
+    dialog.Init model
+
+    dialog.Show
+
+    If model.IsCancelled Then Exit Sub
+
+    ExportController.RunExport model
+
+End Sub
+```
+
+The form's `Init` method stores the model, configures controls from it, and is where the form is wired.
+
+---
+
+# 13. Data Binding Rules
+
+## Load data into UI from the model
+
+```vb
+txtOrderId.Value = m_model.OrderId
 ```
 
 ## Never bind UI directly to Excel ranges
@@ -168,12 +301,27 @@ txtOrderId.Value = ws.Cells(1, 1).Value
 Good:
 
 ```vb
-txtOrderId.Value = order.GetId()
+txtOrderId.Value = m_model.OrderId
+```
+
+Change handlers write to the model:
+
+```vb
+Private Sub txtOrderId_Change()
+
+    m_model.OrderId = txtOrderId.Value
+    RefreshState
+
+End Sub
+
+Private Sub RefreshState()
+    btnOk.Enabled = m_model.IsValid
+End Sub
 ```
 
 ---
 
-# 9. Validation Rules
+# 14. Validation Rules
 
 UserForms may validate:
 
@@ -181,16 +329,11 @@ UserForms may validate:
 - format correctness
 - numeric input
 
-## Allowed validation
+Never trust user input: assume values are empty, mistyped, out of range, in another locale's number format,
+or that the dialog is cancelled.
 
-```vb
-If txtOrderId.Value = "" Then
-    MsgBox "Order ID is required"
-    Exit Sub
-End If
-```
-
----
+Show validation errors next to the field (an icon or a colored hint with a tooltip), not only in a `MsgBox`.
+Use background colors on input controls only to signal something clearly, such as a validation error.
 
 ## Forbidden validation
 
@@ -201,7 +344,7 @@ End If
 
 ---
 
-# 10. MessageBox Usage
+# 15. MessageBox Usage
 
 ## Allowed (limited)
 
@@ -216,37 +359,43 @@ End If
 
 ---
 
-# 11. Logging in UserForms
+# 16. Logging in UserForms
 
-All actions must be logged:
+Important actions are logged:
 
 ```vb
-Utils_Log.Info "UserForm", "User started export"
+Utils_Log.Info "frmExport", "User started export"
 ```
 
-Errors:
+Errors in event handlers:
 
 ```vb
-Utils_Log.Error Err, "UserForm.btnExport_Click"
+Utils_Log.Error Err, "frmExport.btnExport_Click"
 ```
 
 ---
 
-# 12. Initialization Pattern
+# 17. Initialization Pattern
 
 ```vb
-Private Sub UserForm_Initialize()
+Public Sub Init(ByVal model As clsExportModel)
 
-    Utils_Log.Debug "UserForm", "Initializing form"
+    Utils_Guard.NotNothing model, "model"
 
-    LoadDefaultValues
+    Set m_model = model
+
+    txtOrderId.Value = m_model.OrderId
+    RefreshState
 
 End Sub
 ```
 
+Do not rely on `UserForm_Initialize` for model-dependent setup: the model does not exist yet at that point.
+Do not rely on `UserForm_Activate` either: it fires again every time the user returns to the form.
+
 ---
 
-# 13. Avoid Heavy Processing in Forms
+# 18. Avoid Heavy Processing in Forms
 
 Bad:
 
@@ -259,28 +408,57 @@ Next row
 Good:
 
 ```vb
-Call ExportController.RunExport
+ExportController.RunExport m_model
 ```
 
 ---
 
-# 14. UI State Management
+# 19. UI State Management
 
 UserForms may store temporary UI state:
 
 ```vb
-Private selectedFilePath As String
+Private m_selectedFilePath As String
 ```
 
 Rules:
 
 - state must be UI-only
-- never store business data
-- reset on form close if needed
+- never store business data (it lives in the model)
+- fields are private, prefixed `m_`
 
 ---
 
-# 15. Reusability Rule
+# 20. Naming Forms and Controls
+
+Name **everything** the code or a future maintainer may interact with.
+Default names (`UserForm1`, `CommandButton1`, `Label42`, `Rounded Rectangle 1`) are forbidden.
+
+For UserForms, the project accepts a short type prefix on forms and controls, because controls are
+referenced constantly and share one flat namespace. This is the only place where a type prefix is used.
+
+| Element | Prefix | Example |
+|---------|--------|---------|
+| UserForm | `frm` | `frmExport` |
+| Button | `btn` | `btnExport`, `btnCancel` |
+| Text box | `txt` | `txtOrderId` |
+| Combo box | `cmb` | `cmbPrinter` |
+| List box | `lst` | `lstOrders` |
+| Check box | `chk` | `chkOverwrite` |
+| Option button | `opt` | `optMetric` |
+| Label | `lbl` | `lblInstructions` |
+| Frame | `fra` | `fraOptions` |
+
+Event handlers then read naturally: `btnExport_Click`, `txtOrderId_Change`.
+
+Shapes on worksheets that run a macro get a purposeful name as well (`ExportButton`), never the default one.
+
+Set a logical `TabIndex` on every control so the form can be navigated with the keyboard,
+and provide a tooltip on each field the user must fill in (state whether it is required and which format it expects).
+
+---
+
+# 21. Reusability Rule
 
 UserForms must be reusable:
 
@@ -290,45 +468,23 @@ UserForms must be reusable:
 
 ---
 
-# 16. Separation of Concerns Example
-
-## Bad
-
-UserForm does everything:
-
-- reads Excel
-- processes data
-- exports file
-
----
-
-## Good
-
-UserForm only:
-
-- collects input
-- calls controller
-- displays result
-
----
-
-# 17. Recommended Architecture Flow
+# 22. Recommended Architecture Flow
 
 ```
 UserForm
-   â†“
+   |
 Controller Module
-   â†“
+   |
 Class Modules (Business Logic)
-   â†“
+   |
 Excel Object Model
-   â†“
+   |
 Utils_Log (traceability)
 ```
 
 ---
 
-# 18. Performance Rules
+# 23. Performance Rules
 
 - avoid loops in UI
 - avoid Excel access in forms
@@ -337,37 +493,23 @@ Utils_Log (traceability)
 
 ---
 
-# 19. Error Handling Pattern
-
-Every event must include error handling:
-
-```vb
-On Error GoTo ErrorHandler
-
-' logic
-
-Exit Sub
-
-ErrorHandler:
-    Utils_Log.Error Err, "UserForm.Event"
-End Sub
-```
-
----
-
-# 20. AI Rules
+# 24. AI Rules
 
 When generating UserForms, AI must:
 
 - never include business logic in forms
+- never show or use the default instance: create a new instance and show that instance
+- always handle `QueryClose` and hide the form instead of letting it self-destruct
+- use a model class (with `IsValid` and `IsCancelled`) for the form's data
 - always delegate to controller modules
-- keep event handlers minimal
+- keep event handlers minimal and put a handler in each entry-point event
 - use Utils_Log for all logging
 - avoid Excel direct manipulation
 - validate only UI-level input
 - never embed loops over datasets
 - ensure strict UI/business separation
 - avoid MsgBox for system errors
+- name every form and control with the project prefixes
 - maintain event-driven structure
 
 ---
@@ -377,16 +519,21 @@ When generating UserForms, AI must:
 ```vb
 Private Sub btnGenerate_Click()
 
-    On Error GoTo ErrorHandler
+    On Error GoTo CleanFail
 
-    Utils_Log.Info "UserForm", "Generate clicked"
+    Utils_Log.Info "frmExport", "Generate clicked"
 
-    Call ExportController.RunExport(txtOrderId.Value)
+    ExportController.RunExport m_model
 
+    Me.Hide
+
+CleanExit:
     Exit Sub
 
-ErrorHandler:
-    Utils_Log.Error Err, "UserForm.btnGenerate_Click"
+CleanFail:
+    Utils_Log.Error Err, "frmExport.btnGenerate_Click"
+    Resume CleanExit
+
 End Sub
 ```
 
@@ -396,11 +543,11 @@ End Sub
 
 1. UserForms are UI only.
 2. No business logic in forms.
-3. Always delegate to controllers.
-4. Keep event handlers small.
-5. Validate only user input.
-6. Use logging for traceability.
-7. Avoid Excel manipulation in UI.
-8. Never process datasets in forms.
-9. Use MsgBox only for user feedback.
+3. Always create a new instance; never show the default instance.
+4. Hide the form; never let it self-destruct (`QueryClose`).
+5. Form data lives in a model class with `IsValid` and `IsCancelled`.
+6. Always delegate to controllers.
+7. Keep event handlers small.
+8. Validate only user input, and never trust it.
+9. Name every form and control.
 10. UI must remain thin and replaceable.
